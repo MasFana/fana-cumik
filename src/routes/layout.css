@@ -1,0 +1,29 @@
+@import 'tailwindcss';
+
+/* FanaCumik - Minimal Custom Properties */
+:root {
+	--color-primary: #f97316;
+	--color-accent: #db2777;
+}
+
+/* Smooth scrolling */
+html {
+	scroll-behavior: smooth;
+    background-color: #111;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+	width: 6px;
+    background-color: #111;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+::-webkit-scrollbar-thumb {
+	background: #333;
+	border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: #555;
+}
