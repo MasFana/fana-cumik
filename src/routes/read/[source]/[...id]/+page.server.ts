@@ -53,8 +53,9 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
         }
 
         const currentChapter = chapters[currentChapterIndex] || null;
-        const prevChapter = currentChapterIndex > 0 ? chapters[currentChapterIndex - 1] : null;
-        const nextChapter = currentChapterIndex < chapters.length - 1 ? chapters[currentChapterIndex + 1] : null;
+// Assumes Index 0 is Newest, Index N is Oldest
+const nextChapter = currentChapterIndex > 0 ? chapters[currentChapterIndex - 1] : null; // Moves towards 0
+const prevChapter = currentChapterIndex < chapters.length - 1 ? chapters[currentChapterIndex + 1] : null; // Moves towards N
 
         // Caching Strategy:
         // Chapter content rarely changes, so we can cache longer
