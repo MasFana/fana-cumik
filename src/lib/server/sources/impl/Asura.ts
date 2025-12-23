@@ -1,4 +1,3 @@
-import { debug } from '$lib/utils/debug';
 import { BaseSource } from '../BaseSource';
 import type { Manga, MangaDetails, Chapter } from '../types';
 import * as cheerio from 'cheerio';
