@@ -1,10 +1,14 @@
-# 🦑 FanaCumik
+<p align="center">
+  <h1 align="center">🦑 FanaCumik</h1>
+</p>
 
-![License](https://img.shields.io/github/license/MasFana/fana-cumik?style=flat-square&color=blue)
-![SvelteKit](https://img.shields.io/badge/SvelteKit-FF3E00?style=flat-square&logo=svelte&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)
-![TailwindCSS](https://img.shields.io/badge/TailwindCSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)
-![Cloudflare Workers](https://img.shields.io/badge/Cloudflare_Workers-F38020?style=flat-square&logo=cloudflare&logoColor=white)
+<p align="center">
+  <img src="https://img.shields.io/github/license/MasFana/fana-cumik?style=flat-square&color=blue" alt="License">
+  <img src="https://img.shields.io/badge/SvelteKit-FF3E00?style=flat-square&logo=svelte&logoColor=white" alt="SvelteKit">
+  <img src="https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/TailwindCSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white" alt="TailwindCSS">
+  <img src="https://img.shields.io/badge/Cloudflare_Workers-F38020?style=flat-square&logo=cloudflare&logoColor=white" alt="Cloudflare Workers">
+</p>
 
 <p align="center">
   <strong>A lightning-fast, ad-free manga reader built for the Edge.</strong>
@@ -50,12 +54,6 @@ Whether you are a reader looking for a clean UI or a developer wanting to learn 
 |                            **Search**                             |                             **History**                             |
 | :---------------------------------------------------------------: | :-----------------------------------------------------------------: |
 | <img src="Screenshot/Search.webp" width="100%" alt="Search Page"> | <img src="Screenshot/History.webp" width="100%" alt="History Page"> |
-
-### Settings
-
-<p align="center">
-  <img src="Screenshot/Settings.webp" width="100%" alt="Settings Page">
-</p>---
 
 ## 🛠️ Tech Stack
 
