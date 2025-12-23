@@ -15,8 +15,8 @@
 </p>
 
 <p align="center">
-  <a href="https://cumik.fana.my.id">
-    <img src="https://img.shields.io/badge/🚀_Live_Demo-cumik.fana.my.id-2ea44f?style=for-the-badge&logo=rocket" alt="Live Demo">
+  <a href="https://fmo.qzz.io">
+    <img src="https://img.shields.io/badge/🚀_Live_Demo-fmo.qzz.io-2ea44f?style=for-the-badge&logo=rocket" alt="Live Demo">
   </a>
 </p>
 
