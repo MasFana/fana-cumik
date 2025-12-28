@@ -9,21 +9,38 @@
 /* Smooth scrolling */
 html {
 	scroll-behavior: smooth;
-    background-color: #111;
+	background-color: #111;
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
 	width: 6px;
-    background-color: #111;
+	background-color: #111;
 }
+
 ::-webkit-scrollbar-track {
 	background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
 	background: #333;
 	border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
 	background: #555;
+}
+
+.shine-effect {
+	animation: shine 3s linear infinite;
+}
+
+@keyframes shine {
+	0% {
+		transform: translateX(-150%) skewX(-25deg);
+	}
+
+	100% {
+		transform: translateX(500%) skewX(-25deg);
+	}
 }

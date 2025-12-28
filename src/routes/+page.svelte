@@ -196,17 +196,3 @@
 		<span class="absolute top-0 left-0 text-sm font-bold text-zinc-200 translate-y-full group-hover:translate-y-0 transition-transform duration-300 flex items-center h-full whitespace-nowrap">FanaCumik</span>
 	</div>
 </a>
-
-<style>
-	.shine-effect {
-		animation: shine 3s linear infinite;
-	}
-	@keyframes shine {
-		0% {
-			transform: translateX(-150%) skewX(-25deg);
-		}
-		100% {
-			transform: translateX(500%) skewX(-25deg);
-		}
-	}
-</style>
