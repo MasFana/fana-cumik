@@ -184,10 +184,10 @@
 	<!-- Icon Circle with Morphing Effect -->
 	<div class="relative flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-zinc-800 to-zinc-950 border border-zinc-700 group-hover:border-[var(--color-primary)] transition-colors duration-500 overflow-hidden shrink-0 z-20">
 		<!-- Glow behind icon -->
-		<div class="absolute inset-0 bg-[var(--color-primary)] opacity-0 group-hover:opacity-20 transition-opacity duration-500"></div>
+		<div class="absolute inset-0 bg-(--color-primary) opacity-0 group-hover:opacity-20 transition-opacity duration-500"></div>
 		
 		<Github class="w-4 h-4 text-zinc-400 group-hover:scale-0 group-hover:opacity-0 transition-all duration-300 absolute" />
-		<Star class="w-4 h-4 text-[var(--color-accent)] scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100 rotate-[-180deg] group-hover:rotate-0 transition-all duration-500 absolute fill-[var(--color-accent)]" />
+		<Star class="w-4 h-4 text-(--color-accent) scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100 rotate-[-180deg] group-hover:rotate-0 transition-all duration-500 absolute fill-[var(--color-accent)]" />
 	</div>
 
 	<!-- Text Section -->
