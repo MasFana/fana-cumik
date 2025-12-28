@@ -42,45 +42,45 @@ export class AsuraSource extends BaseSource {
 		return res;
 	}
 
-async searchManga(query: string): Promise<Manga[]> {
-    const res: Manga[] = [];
-    const encodedQuery = encodeURIComponent(query);
-    const html = await this.fetchHtml(`/series?page=1&name=${encodedQuery}`);
-    const $ = cheerio.load(html);
+	async searchManga(query: string): Promise<Manga[]> {
+		const res: Manga[] = [];
+		const encodedQuery = encodeURIComponent(query);
+		const html = await this.fetchHtml(`/series?page=1&name=${encodedQuery}`);
+		const $ = cheerio.load(html);
 
-    // Target the specific grid container using the classes from your snippet
-    const elements = $('div.grid.grid-cols-2.gap-3.p-4 > a');
+		// Target the specific grid container using the classes from your snippet
+		const elements = $('div.grid.grid-cols-2.gap-3.p-4 > a');
 
-    elements.each((_, el) => {
-        const item = $(el);
-        
-        // Extract Image
-        const image = item.find('img').attr('src') || '';
-        
-        // Extract Title
-        // The title is in the first span with font-bold inside the text block
-        // <span class="block text-[13.3px] font-bold">Title</span>
-        const title = item.find('span.block.font-bold').first().text().trim();
-        
-        // Extract Link
-        const link = item.attr('href') || '';
+		elements.each((_, el) => {
+			const item = $(el);
 
-        if (title && link) {
-            // Clean the link to get the ID
-            // Input: "series/emperor-of-solo-play-e4516cae" -> Output: "/emperor-of-solo-play-e4516cae"
-            const cleanLink = link.replace(/^series\//, '/').replace(/^\/?/, '/');
-            
-            res.push({
-                id: cleanLink,
-                title: title,
-                cover: image,
-                sourceId: this.id
-            });
-        }
-    });
+			// Extract Image
+			const image = item.find('img').attr('src') || '';
 
-    return res;
-}
+			// Extract Title
+			// The title is in the first span with font-bold inside the text block
+			// <span class="block text-[13.3px] font-bold">Title</span>
+			const title = item.find('span.block.font-bold').first().text().trim();
+
+			// Extract Link
+			const link = item.attr('href') || '';
+
+			if (title && link) {
+				// Clean the link to get the ID
+				// Input: "series/emperor-of-solo-play-e4516cae" -> Output: "/emperor-of-solo-play-e4516cae"
+				const cleanLink = link.replace(/^series\//, '/').replace(/^\/?/, '/');
+
+				res.push({
+					id: cleanLink,
+					title: title,
+					cover: image,
+					sourceId: this.id
+				});
+			}
+		});
+
+		return res;
+	}
 
 	async getMangaDetails(mangaId: string): Promise<MangaDetails> {
 		// Asura specific: Ensure /series or /comic prefix
@@ -88,7 +88,7 @@ async searchManga(query: string): Promise<Manga[]> {
 		if (!normalizedId.startsWith('/series') && !normalizedId.startsWith('/comic')) {
 			normalizedId = `/series${normalizedId.startsWith('/') ? normalizedId : '/' + normalizedId}`;
 		}
-		
+
 		const html = await this.fetchHtml(normalizedId);
 		const $ = cheerio.load(html);
 
@@ -144,9 +144,7 @@ async searchManga(query: string): Promise<Manga[]> {
 	}
 
 	async getChapterPages(chapterId: string): Promise<string[]> {
-		const res: string[] = [];
-
-		// Normalize the chapter path
+		// Normalize path
 		let normalizedPath = chapterId;
 		if (!normalizedPath.startsWith('/series/') && !normalizedPath.startsWith('/series')) {
 			normalizedPath = '/series/' + normalizedPath.replace(/^\//, '');
@@ -154,54 +152,59 @@ async searchManga(query: string): Promise<Manga[]> {
 
 		const html = await this.fetchHtml(normalizedPath);
 
-		// Try multiple regex patterns
-		const patterns = [
-			/\/storage\/media\/\d+\/conversions\/\d{2}-optimized\.webp/gm,
-			/https?:\/\/[^"'\s]+\.(?:jpg|jpeg|png|webp|gif)/gim,
-			/gg\.asuracomic\.net[^"'\s]+\.webp/gim,
-			/src="([^"]*(?:storage|media)[^"]*\.(?:jpg|jpeg|png|webp))"/gim
-		];
-
-		for (let i = 0; i < patterns.length; i++) {
-			const matches = html.match(patterns[i]);
-			if (matches && matches.length > 0) {
-				// Process matches based on pattern type
-				const uniqueMatches = [...new Set(matches)];
-
-				uniqueMatches.forEach((match) => {
-					let url = match;
-
-					// If it's a relative path, add the base
-					if (url.startsWith('/storage')) {
-						url = 'https://gg.asuracomic.net' + url;
-					}
-					// For src="" pattern, extract the URL
-					if (match.includes('src="')) {
-						const srcMatch = match.match(/src="([^"]+)"/);
-						if (srcMatch) url = srcMatch[1];
-					}
-					// Make sure it's a full URL
-					if (!url.startsWith('http')) {
-						if (url.startsWith('//')) {
-							url = 'https:' + url;
-						} else if (url.startsWith('gg.asuracomic.net')) {
-							url = 'https://' + url;
-						}
-					}
-
-					if (!res.includes(url)) {
-						res.push(url);
-					}
-				});
-
-				// If we found results, don't try other patterns
-				if (res.length > 0) {
-					// Return half if there are duplicates (common in these sites)
-					return res.length > 20 ? res.slice(0, Math.ceil(res.length / 2)) : res;
-				}
+		// 1. Combine all script tags content that might contain the data
+		// Asura uses Next.js App Router, data is in self.__next_f.push
+		const $ = cheerio.load(html);
+		let scriptData = '';
+		$('script').each((i, el) => {
+			const content = $(el).html() || '';
+			if (content.includes('self.__next_f.push')) {
+				scriptData += content;
 			}
+		});
+
+		// If cheerio fails to find scripts, fallback to raw html regex
+		if (!scriptData) scriptData = html;
+
+		// 2. Regex to find the "pages" JSON array
+		// Pattern: "pages":[{ ... }]
+		// We look for escaped quote \"pages\" followed by the array
+		const pagesMatch = scriptData.match(/\\"pages\\":(\[.*?\])/);
+
+		if (!pagesMatch || !pagesMatch[1]) {
+			// Fallback: Sometimes it might not be escaped if the format changes
+			const fallbackMatch = scriptData.match(/"pages":(\[.*?\])/);
+			if (!fallbackMatch) {
+				console.error('Could not find pages data in script');
+				return [];
+			}
+			return this.parsePagesJson(fallbackMatch[1]);
 		}
 
-		return res;
+		// 3. Clean the string and Parse JSON
+		// The data is often double-escaped in the script string
+		const rawJson = pagesMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+
+		return this.parsePagesJson(rawJson);
+	}
+
+	private parsePagesJson(jsonString: string): string[] {
+		try {
+			const pages = JSON.parse(jsonString) as { order: number; url: string }[];
+
+			// Sort by order just in case
+			pages.sort((a, b) => a.order - b.order);
+
+			// Extract URLs
+			return pages.map((page) => {
+				const url = page.url;
+				if (url.startsWith('http')) return url;
+				// Fix relative URLs
+				return `https://gg.asuracomic.net${url.startsWith('/') ? '' : '/'}${url}`;
+			});
+		} catch (e) {
+			console.error('Failed to parse chapter pages JSON', e);
+			return [];
+		}
 	}
 }
