@@ -1,6 +1,3 @@
-<!--
-  Manga Detail Page - Tailwind CSS
--->
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { BookOpen, User, Clock, Tag, ChevronRight } from 'lucide-svelte';
