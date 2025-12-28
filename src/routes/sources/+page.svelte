@@ -1,6 +1,3 @@
-<!--
-  Sources Page - Tailwind CSS
--->
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { Library, ExternalLink } from 'lucide-svelte';

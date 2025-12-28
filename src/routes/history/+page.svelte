@@ -1,6 +1,3 @@
-<!--
-  History Page - Reading History
--->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { History, Trash2, BookOpen, Clock } from 'lucide-svelte';
