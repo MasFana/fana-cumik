@@ -9,6 +9,8 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ url, setHeaders }) => {
+	// Get source from URL params, fallback to asura if none specified
+	// Client-side will handle redirecting to stored impl if needed
 	const sourceId = url.searchParams.get('source') || 'asura';
 	const page = parseInt(url.searchParams.get('page') || '1');
 	const query = url.searchParams.get('q') || '';

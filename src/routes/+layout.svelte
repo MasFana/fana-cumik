@@ -1,14 +1,17 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.ico';
-	import { BookOpen, Home, Library, History } from 'lucide-svelte';
+	import { BookOpen, Home, Library, History, Loader2 } from 'lucide-svelte';
 	import { getHistory } from '$lib/stores/history';
-	import { page } from '$app/stores';
+	import { page, navigating } from '$app/stores';
 
 	let { children } = $props();
 
 	// Check if we're on reader page for minimal header
 	let isReaderPage = $derived($page.url.pathname.startsWith('/read/'));
+	
+	// Loading state for navigation
+	let isLoading = $derived($navigating !== null);
 </script>
 
 <svelte:head>
@@ -22,6 +25,26 @@
 </svelte:head>
 
 <div class="min-h-screen bg-zinc-950 text-zinc-100 font-[Inter,system-ui,sans-serif]">
+	<!-- Global Loading Overlay -->
+	{#if isLoading}
+		<div 
+			class="fixed inset-0 bg-zinc-950/80 backdrop-blur-sm z-[100] flex items-center justify-center"
+			style="animation: fadeIn 0.2s ease-out;"
+		>
+			<div class="flex flex-col items-center gap-4">
+				<div class="relative">
+					<!-- Outer ring -->
+					<div class="w-12 h-12 border-4 border-zinc-800 rounded-full"></div>
+					<!-- Spinning ring -->
+					<div class="absolute inset-0 w-12 h-12 border-4 border-transparent border-t-[var(--color-primary)] rounded-full animate-spin"></div>
+					<!-- Inner glow -->
+					<div class="absolute inset-2 bg-[var(--color-primary)]/20 rounded-full blur-sm"></div>
+				</div>
+				<p class="text-sm text-zinc-400 font-medium">Loading...</p>
+			</div>
+		</div>
+	{/if}
+
 	<!-- Navbar - Hidden on reader pages -->
 	{#if !isReaderPage}
 		<nav
@@ -86,3 +109,14 @@
 		</footer>
 	{/if}
 </div>
+
+<style>
+	@keyframes fadeIn {
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
+	}
+</style>

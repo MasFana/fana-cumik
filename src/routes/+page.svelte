@@ -1,13 +1,35 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import { onMount } from 'svelte';
 	import { Search, ChevronLeft, ChevronRight, Loader2, Github, Star } from 'lucide-svelte';
+	import { getImpl, setImpl } from '$lib/stores/impl';
 	const { data }: { data: PageData } = $props();
 	let { mangas, sources, currentSource, currentPage, searchQuery } = $derived(data);
 
 	let searchInput = $derived(searchQuery || '');
 
 	let loading = $state(false);
+
+	// Check for stored impl on mount and redirect if on root
+	onMount(() => {
+		const urlParams = new URLSearchParams($page.url.search);
+		const hasSourceParam = urlParams.has('source');
+		
+		if (!hasSourceParam) {
+			const storedImpl = getImpl();
+			if (storedImpl && storedImpl !== currentSource) {
+				goto(`/?source=${storedImpl}`);
+				return;
+			}
+		}
+		
+		// Save current source as impl if it's different
+		if (currentSource && currentSource !== getImpl()) {
+			setImpl(currentSource);
+		}
+	});
 
 	function proxyImage(url: string): string {
 		if (!url) return '';
@@ -26,6 +48,8 @@
 	function handleSourceChange(e: Event) {
 		const select = e.target as HTMLSelectElement;
 		loading = true;
+		// Save the new source as the current impl
+		setImpl(select.value);
 		goto(`/?source=${select.value}`).finally(() => (loading = false));
 	}
 

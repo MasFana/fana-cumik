@@ -1,7 +1,7 @@
-import { AsuraSource } from '../src/lib/server/sources/impl/Asura'; // Adjust path to where you saved AsuraSource
+import { ManhuafastSource } from '../src/lib/server/sources/impl/Manhuafast'; // Adjust path to where you saved AsuraSource
 import type { Manga, MangaDetails } from '../src/lib/server/sources/types';
 
-const Impl = AsuraSource;
+const Impl = ManhuafastSource; // Change to AsuraSource when testing Asura
 
 // specific colors for console output
 const colors = {
@@ -15,7 +15,7 @@ const colors = {
 const log = (msg: string, color: string = colors.reset) => console.log(`${color}${msg}${colors.reset}`);
 
 async function runTest() {
-    log("🚀 Starting Asura Scans Adapter Test...\n", colors.cyan);
+    log("🚀 Starting Adapter Test...\n", colors.cyan);
 
     const source = new Impl();
     let selectedManga: Manga | null = null;
