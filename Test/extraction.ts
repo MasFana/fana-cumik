@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 import { performance } from 'perf_hooks';
-import * as fs from 'fs';
+// import * as fs from 'fs';
 
 // =========================================================
 // 1. CONFIGURATION (Targeting ManhuaPlus)
@@ -133,7 +133,7 @@ async function runBenchmark() {
     const previewCheerio = parseWithCheerio(html);
 
 
-    fs.writeFileSync('previewRegex.json', JSON.stringify(previewRegex, null, 2))
+    // fs.writeFileSync('previewRegex.json', JSON.stringify(previewRegex, null, 2))
 
     console.log(`   Regex Found   : ${previewRegex.length} items`);
     if (previewRegex.length > 0) console.log(`   👉 Ex: [${previewRegex[0].title.substring(0, 25)}...] -> ${previewRegex[0].link.substring(0, 30)}...`);
@@ -146,7 +146,7 @@ async function runBenchmark() {
         console.error("\n❌ ERROR: Cheerio found 0 items.");
         console.error("   The HTML structure might be different than expected.");
         console.error("   Saving HTML to 'debug_fail.html' for inspection...");
-        fs.writeFileSync('debug_fail.html', html);
+        // fs.writeFileSync('debug_fail.html', html);
         console.log("   ✅ Saved 'debug_fail.html'. Open this file to see the real structure.");
         process.exit(1);
     }

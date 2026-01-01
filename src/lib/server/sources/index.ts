@@ -7,11 +7,13 @@
  */
 
 import { AsuraSource } from './impl/Asura';
+import { ManhuafastSource } from './impl/Manhuafast';
 import type { IMangaSource } from './types';
 
 // Registry of all available manga sources
 const sources: Record<string, IMangaSource> = {
-	asura: new AsuraSource()
+	asura: new AsuraSource(),
+	manhuafast: new ManhuafastSource(),
 	// Add more sources here:
 	// mangabat: new MangabatSource(),
 	// komikcast: new KomikcastSource(),
