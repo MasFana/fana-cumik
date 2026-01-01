@@ -21,7 +21,7 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
 	// Remove the chapter part from the ID to get the manga ID
 	const mangaId = chapterId.replace(/\/(chapter|ch|episode|ep)[-/_]?.+$/i, '');
     // For History
-	const mangaSlug = mangaId.split('/').pop() || 'unknown';
+    const mangaSlug = mangaId.startsWith('/') ? mangaId.slice(1): mangaId;
 
     try {
         const adapter = getSource(source);
