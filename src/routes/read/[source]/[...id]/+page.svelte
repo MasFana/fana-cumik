@@ -4,7 +4,6 @@
 	import { goto } from '$app/navigation';
 	import { ArrowLeft, Maximize2, Minimize2, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-svelte';
 	import { saveReading } from '$lib/stores/history';
-	import debug from '$lib/utils/debug';
 
 	const { data }: { data: PageData } = $props();
 	let { pages, source, chapterId, mangaInfo, chapters, currentChapter, prevChapter, nextChapter } = $derived(data);
