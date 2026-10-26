@@ -1,7 +1,7 @@
-import { ManhuafastSource } from '../src/lib/server/sources/impl/Manhuafast'; // Adjust path to where you saved AsuraSource
+import { KomikuSource } from '../src/lib/server/sources/impl/Komiku';
 import type { Manga, MangaDetails } from '../src/lib/server/sources/types';
 
-const Impl = ManhuafastSource; // Change to AsuraSource when testing Asura
+const Impl = KomikuSource;
 
 // specific colors for console output
 const colors = {
@@ -31,7 +31,7 @@ async function runTest() {
         if (latest.length > 0) {
             log(`    ✅ Success: Found ${latest.length} manga entries.`, colors.green);
             log(`    ℹ️  First item: ${latest[0].title} (ID: ${latest[0].id})`);
-            selectedManga = latest[0]; // Pick the first one for subsequent tests
+            selectedManga = latest[0];
         } else {
             log(`    ❌ Failed: Returned empty array.`, colors.red);
             process.exit(1);
@@ -41,14 +41,13 @@ async function runTest() {
         process.exit(1);
     }
 
-    console.log(""); // Spacer
+    console.log("");
 
     // ---------------------------------------------------------
     // 2. Test searchManga
     // ---------------------------------------------------------
     try {
-        // We use a known popular term or part of the title found previously
-        const query = selectedManga ? selectedManga.title.substring(0, 10) : "Solo";
+        const query = selectedManga ? selectedManga.title.substring(0, 10) : "Ao Ashi";
         log(`[2] Testing searchManga('${query}')...`, colors.yellow);
 
         const searchResults = await source.searchManga(query);
@@ -64,7 +63,7 @@ async function runTest() {
         log(`    ❌ Error: ${err}`, colors.red);
     }
 
-    console.log(""); // Spacer
+    console.log("");
 
     // ---------------------------------------------------------
     // 3. Test getMangaDetails
@@ -89,7 +88,7 @@ async function runTest() {
         process.exit(1);
     }
 
-    console.log(""); // Spacer
+    console.log("");
 
     // ---------------------------------------------------------
     // 4. Test getChapterPages
@@ -97,8 +96,7 @@ async function runTest() {
     if (!selectedDetails || selectedDetails.chapters.length === 0) return;
 
     try {
-        // Test the first (latest) chapter
-        const targetChapter = selectedDetails.chapters[1];
+        const targetChapter = selectedDetails.chapters[0];
         log(`[4] Testing getChapterPages('${targetChapter.id}')...`, colors.yellow);
 
         const pages = await source.getChapterPages(targetChapter.id);
@@ -107,12 +105,11 @@ async function runTest() {
             log(`    ✅ Success: Found ${pages.length} pages.`, colors.green);
             log(`    ℹ️  Sample Page 1: ${pages[0]}`);
 
-            // Basic validation that it is an image URL
             if (!pages[0].startsWith('http')) {
                 log(`    ⚠️  Warning: Image URL does not start with http.`, colors.yellow);
             }
         } else {
-            log(`    ❌ Failed: Returned empty page array. The Next.js Regex logic might be outdated.`, colors.red);
+            log(`    ❌ Failed: Returned empty page array.`, colors.red);
         }
     } catch (err) {
         log(`    ❌ Error: ${err}`, colors.red);
@@ -121,5 +118,4 @@ async function runTest() {
     console.log("\n🏁 Test Sequence Complete.");
 }
 
-// Execute
 runTest();
