@@ -107,39 +107,39 @@
 	</div>
 
 	<!-- Chapters Section -->
-	<div>
-		<h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-			<BookOpen class="w-5 h-5 text-[var(--color-primary)]" />
-			Chapters
-			<span class="text-sm text-zinc-500 font-normal">({manga.chapters?.length || 0})</span>
-		</h2>
+		<div>
+			<h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+				<BookOpen class="w-5 h-5 text-[var(--color-primary)]" />
+				Chapters
+				<span class="text-sm text-zinc-500 font-normal">({manga.chapters?.length || 0})</span>
+			</h2>
 
-		{#if manga.chapters?.length}
-			<div class="space-y-1">
-				{#each manga.chapters as chapter}
-					<a
-						href="/read/{source}{chapter.id}"
-						class="flex items-center justify-between px-4 py-3 bg-zinc-900/50 hover:bg-zinc-800/50 border border-zinc-800/50 rounded-xl transition-colors group active:scale-[0.98] active:bg-zinc-800"
-					>
-						<span class="text-sm text-zinc-300 group-hover:text-white transition-colors">
-							{chapter.title}
-						</span>
-						<div class="flex items-center gap-3 shrink-0">
-							{#if chapter.date}
-								<span class="text-xs text-zinc-500">{chapter.date}</span>
-							{/if}
-							<ChevronRight
-								class="w-4 h-4 text-zinc-600 group-hover:text-[var(--color-primary)] transition-colors"
-							/>
-						</div>
-					</a>
-				{/each}
-			</div>
-		{:else}
-			<p class="text-center text-zinc-500 py-10">No chapters available.</p>
-		{/if}
+			{#if manga.chapters?.length}
+				<div class="space-y-1">
+					{#each manga.chapters as chapter}
+						<a
+							href="/read/{source}{chapter.id}"
+							class="flex items-center justify-between px-4 py-3 bg-zinc-900/50 hover:bg-zinc-800/50 border border-zinc-800/50 rounded-xl transition-colors group active:scale-[0.98] active:bg-zinc-800"
+						>
+							<span class="text-sm text-zinc-300 group-hover:text-white transition-colors">
+								{chapter.title}
+							</span>
+							<div class="flex items-center gap-3 shrink-0">
+								{#if chapter.date}
+									<span class="text-xs text-zinc-500">{chapter.date}</span>
+								{/if}
+								<ChevronRight
+									class="w-4 h-4 text-zinc-600 group-hover:text-[var(--color-primary)] transition-colors"
+								/>
+							</div>
+						</a>
+					{/each}
+				</div>
+			{:else}
+				<p class="text-center text-zinc-500 py-10">No chapters available.</p>
+			{/if}
+		</div>
 	</div>
-</div>
 
 <style>
 	/* Mobile optimizations */
