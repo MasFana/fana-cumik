@@ -61,19 +61,38 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
         }
 
         // Extract current chapter info from chapter list
-        const chapters = mangaDetails?.chapters || [];
+        		const chapters = mangaDetails?.chapters || [];
+		
+        		// Parse chapter titles to separate title from date for ALL chapters
+        				const parsedChapters = chapters.map(ch => {
+        					let title = ch.title || '';
+        					let date = ch.date || '';
+			
+        					// If date field exists and title ends with date, remove date from title
+        					if (date && title.endsWith(date)) {
+        						title = title.slice(0, -date.length).trim();
+        					} else {
+        						// Fallback: regex parse
+        						const match = title.match(/^(Chapter\s+\d+(?:\.\d+)?)(.+)$/i);
+        						if (match) {
+        							title = match[1].trim();
+        							date = match[2].trim() || date;
+        						}
+        					}
+        					return { ...ch, title, date };
+        				});
+		
+        		// Try exact match first, then loose match
+        		let currentChapterIndex = parsedChapters.findIndex(ch => ch.id === chapterId);
         
-        // Try exact match first, then loose match
-        let currentChapterIndex = chapters.findIndex(ch => ch.id === chapterId);
-        
-        if (currentChapterIndex === -1 && chapters.length > 0) {
+        if (currentChapterIndex === -1 && parsedChapters.length > 0) {
             // Fallback: match by ending (e.g. /chapter/1 vs /chapter-1 or missing prefix)
-            currentChapterIndex = chapters.findIndex(ch => 
+            currentChapterIndex = parsedChapters.findIndex(ch => 
                 ch.id.endsWith(chapterId) || chapterId.endsWith(ch.id)
             );
         }
 
-        const currentChapter = chapters[currentChapterIndex] || null;
+        const currentChapter = parsedChapters[currentChapterIndex] || null;
         
         // Parse chapter title to separate chapter number/title from date
         // Title format: "Chapter 17716 hours ago" or "Chapter 177Sep 21, 2026"
@@ -89,8 +108,8 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
         }
         
 // Assumes Index 0 is Newest, Index N is Oldest
-const nextChapter = currentChapterIndex > 0 ? chapters[currentChapterIndex - 1] : null; // Moves towards 0
-const prevChapter = currentChapterIndex < chapters.length - 1 ? chapters[currentChapterIndex + 1] : null; // Moves towards N
+const nextChapter = currentChapterIndex > 0 ? parsedChapters[currentChapterIndex - 1] : null; // Moves towards 0
+const prevChapter = currentChapterIndex < parsedChapters.length - 1 ? parsedChapters[currentChapterIndex + 1] : null; // Moves towards N
 
         // Caching Strategy:
         // Chapter content rarely changes, so we can cache longer
@@ -115,7 +134,7 @@ const prevChapter = currentChapterIndex < chapters.length - 1 ? chapters[current
                 cover: '',
                 slug: mangaSlug
             },
-            chapters,
+            chapters: parsedChapters,
             currentChapter: currentChapter ? {
                 ...currentChapter,
                 title: parsedChapterTitle,
