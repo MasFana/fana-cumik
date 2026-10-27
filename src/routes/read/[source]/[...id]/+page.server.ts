@@ -36,7 +36,28 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
         ]);
         
         if (!pages || pages.length === 0) {
-            throw error(404, { message: 'Chapter not found or has no pages' });
+            // Return empty pages with error flag instead of throwing 404
+            return {
+                pages: [],
+                source,
+                chapterId,
+                mangaInfo: mangaDetails ? {
+                    id: mangaDetails.id,
+                    title: mangaDetails.title,
+                    cover: mangaDetails.cover,
+                    slug: mangaSlug
+                } : {
+                    id: mangaId,
+                    title: mangaSlug.replace(/-/g, ' '),
+                    cover: '',
+                    slug: mangaSlug
+                },
+                chapters: mangaDetails?.chapters || [],
+                currentChapter: null,
+                prevChapter: null,
+                nextChapter: null,
+                error: 'Chapter not found or has no pages'
+            };
         }
 
         // Extract current chapter info from chapter list
@@ -53,6 +74,20 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
         }
 
         const currentChapter = chapters[currentChapterIndex] || null;
+        
+        // Parse chapter title to separate chapter number/title from date
+        // Title format: "Chapter 17716 hours ago" or "Chapter 177Sep 21, 2026"
+        let parsedChapterTitle = currentChapter?.title || '';
+        let chapterDate = '';
+        if (parsedChapterTitle) {
+            // Match patterns like "Chapter 17716 hours ago" or "Chapter 177Sep 21, 2026"
+            const match = parsedChapterTitle.match(/^(Chapter\s+\d+(?:\.\d+)?)(.+)$/i);
+            if (match) {
+                parsedChapterTitle = match[1].trim();
+                chapterDate = match[2].trim();
+            }
+        }
+        
 // Assumes Index 0 is Newest, Index N is Oldest
 const nextChapter = currentChapterIndex > 0 ? chapters[currentChapterIndex - 1] : null; // Moves towards 0
 const prevChapter = currentChapterIndex < chapters.length - 1 ? chapters[currentChapterIndex + 1] : null; // Moves towards N
@@ -81,7 +116,11 @@ const prevChapter = currentChapterIndex < chapters.length - 1 ? chapters[current
                 slug: mangaSlug
             },
             chapters,
-            currentChapter,
+            currentChapter: currentChapter ? {
+                ...currentChapter,
+                title: parsedChapterTitle,
+                date: chapterDate
+            } : null,
             prevChapter,
             nextChapter
         };

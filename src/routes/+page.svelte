@@ -3,10 +3,10 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
-	import { Search, ChevronLeft, ChevronRight, Loader2, Github, Star } from 'lucide-svelte';
+	import { Search, ChevronLeft, ChevronRight, Loader2, Github, Star, AlertCircle, RefreshCw } from 'lucide-svelte';
 	import { getImpl, setImpl } from '$lib/stores/impl';
 	const { data }: { data: PageData } = $props();
-	let { mangas, sources, currentSource, currentPage, searchQuery } = $derived(data);
+	let { mangas, sources, currentSource, currentPage, searchQuery, error } = $derived(data);
 
 	let searchInput = $derived(searchQuery || '');
 
@@ -16,7 +16,7 @@
 	onMount(() => {
 		const urlParams = new URLSearchParams($page.url.search);
 		const hasSourceParam = urlParams.has('source');
-		
+
 		if (!hasSourceParam) {
 			const storedImpl = getImpl();
 			if (storedImpl && storedImpl !== currentSource) {
@@ -24,7 +24,7 @@
 				return;
 			}
 		}
-		
+
 		// Save current source as impl if it's different
 		if (currentSource && currentSource !== getImpl()) {
 			setImpl(currentSource);
@@ -53,11 +53,16 @@
 		goto(`/?source=${select.value}`).finally(() => (loading = false));
 	}
 
-	function goToPage(page: number) {
+	function goToPage(pageNum: number) {
 		const params = new URLSearchParams();
 		params.set('source', currentSource);
-		params.set('page', String(page));
+		params.set('page', String(pageNum));
 		goto(`/?${params.toString()}`);
+	}
+
+	function retryLoad() {
+		loading = true;
+		goto(`/?source=${currentSource}&page=${currentPage}`).finally(() => (loading = false));
 	}
 </script>
 
@@ -67,7 +72,41 @@
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-4 py-6">
-	
+
+	<!-- Error Banner -->
+	{#if error}
+		<div class="mb-6 p-4 bg-red-900/30 border border-red-700/50 rounded-lg flex items-center gap-3 text-red-300">
+			<AlertCircle class="w-5 h-5 flex-shrink-0" />
+			<div class="flex-1">
+				<p class="font-medium">{error}</p>
+				<p class="text-sm text-red-400/80 mt-1">Try selecting a different source below or retry.</p>
+			</div>
+			<div class="flex gap-2">
+				<select
+					value={currentSource}
+					onchange={handleSourceChange}
+					class="px-3 py-2 bg-red-900/50 border border-red-700 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-red-500 cursor-pointer text-white"
+				>
+					{#each sources as source}
+						<option value={source.id}>{source.name}</option>
+					{/each}
+				</select>
+				<button
+					onclick={retryLoad}
+					disabled={loading}
+					class="px-3 py-2 bg-[var(--color-primary)] hover:opacity-90 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+				>
+					{#if loading}
+						<Loader2 class="w-4 h-4 animate-spin" />
+					{:else}
+						<RefreshCw class="w-4 h-4" />
+						Retry
+					{/if}
+				</button>
+			</div>
+		</div>
+	{/if}
+
 	<!-- Header -->
 	<div class="mb-6">
 		<h1
@@ -129,6 +168,9 @@
 	{:else if mangas.length === 0}
 		<div class="text-center py-20 text-zinc-500">
 			<p>No manga found.</p>
+			{#if error}
+				<p class="mt-2">Try a different source or search term.</p>
+			{/if}
 		</div>
 	{:else}
 		<!-- Manga Grid -->
@@ -209,7 +251,7 @@
 	<div class="relative flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-zinc-800 to-zinc-950 border border-zinc-700 group-hover:border-[var(--color-primary)] transition-colors duration-500 overflow-hidden shrink-0 z-20">
 		<!-- Glow behind icon -->
 		<div class="absolute inset-0 bg-(--color-primary) opacity-0 group-hover:opacity-20 transition-opacity duration-500"></div>
-		
+
 		<Github class="w-4 h-4 text-zinc-400 group-hover:scale-0 group-hover:opacity-0 transition-all duration-300 absolute" />
 		<Star class="w-4 h-4 text-(--color-accent) scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100 rotate-[-180deg] group-hover:rotate-0 transition-all duration-500 absolute fill-[var(--color-accent)]" />
 	</div>

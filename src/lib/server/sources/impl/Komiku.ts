@@ -25,56 +25,62 @@ export class KomikuSource extends BaseSource {
 
 	async getLatestManga(page: number): Promise<Manga[]> {
 		const res: Manga[] = [];
-		const html = await this.fetchHtml(`${this.apiBase}/manga/${page > 1 ? `page/${page}/` : ''}?orderby=date`);
-		const $ = cheerio.load(html);
+		try {
+			const html = await this.fetchHtml(`${this.apiBase}/manga/${page > 1 ? `page/${page}/` : ''}?orderby=date`);
+			const $ = cheerio.load(html);
 
-		$('.bge').each((_, el) => {
-			const $card = $(el);
-			const link = $card.find('.bgei a[href*="/manga/"]').first().attr('href') 
-				|| $card.find('.kan a[href*="/manga/"]').first().attr('href') || '';
-			const image = $card.find('.bgei img').first().attr('src') || '';
-			const title = $card.find('.kan h3').first().text().trim() 
-				|| $card.find('.kan a').first().text().trim();
+			$('.bge').each((_, el) => {
+				const $card = $(el);
+				const link = $card.find('.bgei a[href*="/manga/"]').first().attr('href') 
+					|| $card.find('.kan a[href*="/manga/"]').first().attr('href') || '';
+				const image = $card.find('.bgei img').first().attr('src') || '';
+				const title = $card.find('.kan h3').first().text().trim() 
+					|| $card.find('.kan a').first().text().trim();
 
-			if (title && link) {
-				const cleanLink = this.normalizeLink(link);
-				res.push({
-					id: cleanLink,
-					title,
-					cover: image.startsWith('http') ? image : `https:${image}`,
-					sourceId: this.id
-				});
-			}
-		});
-
+				if (title && link) {
+					const cleanLink = this.normalizeLink(link);
+					res.push({
+						id: cleanLink,
+						title,
+						cover: image.startsWith('http') ? image : `https:${image}`,
+						sourceId: this.id
+					});
+				}
+			});
+		} catch (e) {
+			console.error('[Komiku] getLatestManga failed:', e);
+		}
 		return res;
 	}
 
 	async searchManga(query: string): Promise<Manga[]> {
 		const res: Manga[] = [];
-		const encodedQuery = encodeURIComponent(query);
-		const html = await this.fetchHtml(`${this.apiBase}/manga/?s=${encodedQuery}&post_type=manga`);
-		const $ = cheerio.load(html);
+		try {
+			const encodedQuery = encodeURIComponent(query);
+			const html = await this.fetchHtml(`${this.apiBase}/manga/?s=${encodedQuery}&post_type=manga`);
+			const $ = cheerio.load(html);
 
-		$('.bge').each((_, el) => {
-			const $card = $(el);
-			const link = $card.find('.bgei a[href*="/manga/"]').first().attr('href') 
-				|| $card.find('.kan a[href*="/manga/"]').first().attr('href') || '';
-			const image = $card.find('.bgei img').first().attr('src') || '';
-			const title = $card.find('.kan h3').first().text().trim() 
-				|| $card.find('.kan a').first().text().trim();
+			$('.bge').each((_, el) => {
+				const $card = $(el);
+				const link = $card.find('.bgei a[href*="/manga/"]').first().attr('href') 
+					|| $card.find('.kan a[href*="/manga/"]').first().attr('href') || '';
+				const image = $card.find('.bgei img').first().attr('src') || '';
+				const title = $card.find('.kan h3').first().text().trim() 
+					|| $card.find('.kan a').first().text().trim();
 
-			if (title && link) {
-				const cleanLink = this.normalizeLink(link);
-				res.push({
-					id: cleanLink,
-					title,
-					cover: image.startsWith('http') ? image : `https:${image}`,
-					sourceId: this.id
-				});
-			}
-		});
-
+				if (title && link) {
+					const cleanLink = this.normalizeLink(link);
+					res.push({
+						id: cleanLink,
+						title,
+						cover: image.startsWith('http') ? image : `https:${image}`,
+						sourceId: this.id
+					});
+				}
+			});
+		} catch (e) {
+			console.error('[Komiku] searchManga failed:', e);
+		}
 		return res;
 	}
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { PageData } from './$types';
-	import { BookOpen, User, Clock, Tag, ChevronRight } from 'lucide-svelte';
+	import { BookOpen, User, Clock, Tag, ChevronRight, ArrowRight } from 'lucide-svelte';
 	import { getLastRead } from '$lib/stores/history';
 
 	const { data }: { data: PageData } = $props();
@@ -42,7 +42,7 @@
 
 		<!-- Info -->
 		<div class="flex-1 text-center md:text-left">
-			<h1 class="text-2xl sm:text-3xl font-bold text-white mb-3">{manga.title}</h1>
+			<h1 class="text-2xl sm:text-3xl font-bold text-white mb-3 leading-tight">{manga.title}</h1>
 
 			<!-- Meta -->
 			<div class="flex flex-wrap justify-center md:justify-start gap-3 text-sm text-zinc-400 mb-4">
@@ -80,16 +80,28 @@
 			{#if lastRead}
 				<a
 					href="/read/{source}{lastRead.chapterId}"
-					class="inline-flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] hover:opacity-90 rounded-lg font-medium transition-colors mb-4"
+					class="inline-flex items-center gap-2 px-6 py-3 bg-[var(--color-primary)] hover:opacity-90 rounded-xl font-medium transition-colors mb-4 text-base shadow-lg shadow-[var(--color-primary)]/20 active:scale-[0.98]"
 				>
-					<BookOpen class="w-4 h-4" />
+					<BookOpen class="w-5 h-5" />
 					Continue: {lastRead.chapterTitle}
+				</a>
+			{/if}
+
+			<!-- Start Reading Button (when no history) -->
+			{#if !lastRead && manga.chapters?.length}
+				<a
+					href="/read/{source}{manga.chapters[manga.chapters.length - 1].id}"
+					class="inline-flex items-center gap-2 px-6 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl font-medium transition-colors mb-4 text-base border border-zinc-700 active:scale-[0.98]"
+				>
+					<BookOpen class="w-5 h-5" />
+					Start from Chapter 1
+					<ArrowRight class="w-4 h-4" />
 				</a>
 			{/if}
 
 			<!-- Synopsis -->
 			{#if manga.description}
-				<p class="text-sm text-zinc-400 leading-relaxed max-w-2xl">{manga.description}</p>
+				<p class="text-base text-zinc-300 leading-relaxed max-w-2xl">{manga.description}</p>
 			{/if}
 		</div>
 	</div>
@@ -107,14 +119,14 @@
 				{#each manga.chapters as chapter}
 					<a
 						href="/read/{source}{chapter.id}"
-						class="flex items-center justify-between px-4 py-3 bg-zinc-900/50 hover:bg-zinc-800/50 border border-zinc-800/50 rounded-lg transition-colors group"
+						class="flex items-center justify-between px-4 py-3 bg-zinc-900/50 hover:bg-zinc-800/50 border border-zinc-800/50 rounded-xl transition-colors group active:scale-[0.98] active:bg-zinc-800"
 					>
 						<span class="text-sm text-zinc-300 group-hover:text-white transition-colors">
 							{chapter.title}
 						</span>
-						<div class="flex items-center gap-3">
+						<div class="flex items-center gap-3 shrink-0">
 							{#if chapter.date}
-								<span class="text-xs text-zinc-600">{chapter.date}</span>
+								<span class="text-xs text-zinc-500">{chapter.date}</span>
 							{/if}
 							<ChevronRight
 								class="w-4 h-4 text-zinc-600 group-hover:text-[var(--color-primary)] transition-colors"
@@ -128,3 +140,59 @@
 		{/if}
 	</div>
 </div>
+
+<style>
+	/* Mobile optimizations */
+	@media (max-width: 640px) {
+		.flex-col.md\\:flex-row {
+			gap: 1.5rem;
+		}
+		
+		.w-48 {
+			width: 10rem;
+		}
+		
+		.text-2xl.sm\\:text-3xl {
+			font-size: 1.5rem;
+		}
+		
+		.px-4 {
+			padding-left: 1rem;
+			padding-right: 1rem;
+		}
+		
+		.py-6 {
+			padding-top: 1.5rem;
+			padding-bottom: 1.5rem;
+		}
+	}
+
+	/* Touch targets */
+	a, button {
+		min-height: 44px;
+		min-width: 44px;
+	}
+	
+	/* Better tap feedback */
+	a:active, button:active {
+		transform: scale(0.98);
+	}
+	
+	/* Smooth transitions */
+	* {
+		-webkit-tap-highlight-color: transparent;
+	}
+	
+	/* Reading progress for chapter list */
+	.space-y-1 > a {
+		transition: all 0.15s ease;
+	}
+	
+	/* Chapter list scroll */
+	.space-y-1 {
+		max-height: 70vh;
+		overflow-y: auto;
+		scrollbar-width: thin;
+		scrollbar-color: var(--color-primary) transparent;
+	}
+</style>
