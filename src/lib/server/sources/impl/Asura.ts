@@ -91,26 +91,32 @@ export class AsuraSource extends BaseSource {
 		// Chapter links are: /comics/{slug}/chapter/{num}
 		const mangaSlug = normalizedId.replace('/comics/', '');
 		const chapterLinks = $(`a[href^="/comics/${mangaSlug}/chapter/"]`);
-		
-		chapterLinks.each((i, el) => {
-			const $el = $(el);
-			const link = $el.attr('href') || '';
-			const chapterTitle = $el.text().trim();
-			
-			if (link) {
-				const numMatch = chapterTitle.match(/chapter\s*(\d+(?:\.\d+)?)/i) 
-					|| link.match(/\/chapter\/(\d+(?:\.\d+)?)/i);
-				const number = numMatch ? parseFloat(numMatch[1]) : 0;
 
-				const cleanLink = link.startsWith('/') ? link : `/${link}`;
-				chapters.push({
-					id: cleanLink,
-					title: chapterTitle || `Chapter ${number}`,
-					number,
-					date: ''
+				chapterLinks.each((i, el) => {
+					const $el = $(el);
+					const link = $el.attr('href') || '';
+			
+					// Chapter title and date are in separate elements
+					// Title: span.font-medium, Date: span.text-sm.text-white/40
+					const chapterTitle = $el.find('span.font-medium').first().text().trim();
+					const chapterDate = $el.find('span.text-sm.text-white\\/40, span.text-white\\/40').first().text().trim();
+			
+					const fullTitle = chapterTitle + (chapterDate ? ` ${chapterDate}` : '');
+
+					if (link) {
+						const numMatch = chapterTitle.match(/chapter\s*(\d+(?:\.\d+)?)/i) 
+							|| link.match(/\/chapter\/(\d+(?:\.\d+)?)/i);
+						const number = numMatch ? parseFloat(numMatch[1]) : 0;
+
+						const cleanLink = link.startsWith('/') ? link : `/${link}`;
+						chapters.push({
+							id: cleanLink,
+							title: fullTitle || `Chapter ${number}`,
+							number,
+							date: chapterDate
+						});
+					}
 				});
-			}
-		});
 
 		// Sort by chapter number descending (latest first)
 		chapters.sort((a, b) => b.number - a.number);
