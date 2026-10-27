@@ -14,51 +14,59 @@ export class AsuraSource extends BaseSource {
 
 	async getLatestManga(page: number): Promise<Manga[]> {
 		const res: Manga[] = [];
-		const html = await this.fetchHtml(`/browse/comics?page=${page}`);
-		const $ = cheerio.load(html);
+		try {
+			const html = await this.fetchHtml(`/browse/comics?page=${page}`);
+			const $ = cheerio.load(html);
 
-		$('.series-card').each((_, el) => {
-			const $card = $(el);
-			const link = $card.find('a[href^="/comics/"]').first().attr('href') || '';
-			const image = $card.find('img').first().attr('src') || '';
-			const title = $card.find('h3').first().text().trim();
+			$('.series-card').each((_, el) => {
+				const $card = $(el);
+				const link = $card.find('a[href^="/comics/"]').first().attr('href') || '';
+				const image = $card.find('img').first().attr('src') || '';
+				const title = $card.find('h3').first().text().trim();
 
-			if (title && link) {
-				const cleanLink = link.startsWith('/') ? link : `/${link}`;
-				res.push({
-					id: cleanLink,
-					title,
-					cover: image.startsWith('http') ? image : `https:${image}`,
-					sourceId: this.id
-				});
-			}
-		});
+				if (title && link) {
+					const cleanLink = link.startsWith('/') ? link : `/${link}`;
+					res.push({
+						id: cleanLink,
+						title,
+						cover: image.startsWith('http') ? image : `https:${image}`,
+						sourceId: this.id
+					});
+				}
+			});
+		} catch (e) {
+			console.error('[Asura] getLatestManga failed:', e);
+		}
 
 		return res;
 	}
 
 	async searchManga(query: string): Promise<Manga[]> {
 		const res: Manga[] = [];
-		const encodedQuery = encodeURIComponent(query);
-		const html = await this.fetchHtml(`/browse/comics?search=${encodedQuery}&page=1`);
-		const $ = cheerio.load(html);
+		try {
+			const encodedQuery = encodeURIComponent(query);
+			const html = await this.fetchHtml(`/browse/comics?search=${encodedQuery}&page=1`);
+			const $ = cheerio.load(html);
 
-		$('.series-card').each((_, el) => {
-			const $card = $(el);
-			const link = $card.find('a[href^="/comics/"]').first().attr('href') || '';
-			const image = $card.find('img').first().attr('src') || '';
-			const title = $card.find('h3').first().text().trim();
+			$('.series-card').each((_, el) => {
+				const $card = $(el);
+				const link = $card.find('a[href^="/comics/"]').first().attr('href') || '';
+				const image = $card.find('img').first().attr('src') || '';
+				const title = $card.find('h3').first().text().trim();
 
-			if (title && link) {
-				const cleanLink = link.startsWith('/') ? link : `/${link}`;
-				res.push({
-					id: cleanLink,
-					title,
-					cover: image.startsWith('http') ? image : `https:${image}`,
-					sourceId: this.id
-				});
-			}
-		});
+				if (title && link) {
+					const cleanLink = link.startsWith('/') ? link : `/${link}`;
+					res.push({
+						id: cleanLink,
+						title,
+						cover: image.startsWith('http') ? image : `https:${image}`,
+						sourceId: this.id
+					});
+				}
+			});
+		} catch (e) {
+			console.error('[Asura] searchManga failed:', e);
+		}
 
 		return res;
 	}

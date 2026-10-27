@@ -10,7 +10,6 @@ import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ url, setHeaders }) => {
 	// Get source from URL params, fallback to asura if none specified
-	// Client-side will handle redirecting to stored impl if needed
 	const sourceId = url.searchParams.get('source') || 'asura';
 	const page = parseInt(url.searchParams.get('page') || '1');
 	const query = url.searchParams.get('q') || '';
@@ -34,10 +33,20 @@ export const load: PageServerLoad = async ({ url, setHeaders }) => {
 			sources: sources.map((s) => ({ id: s.id, name: s.name })),
 			currentSource: sourceId,
 			currentPage: page,
-			searchQuery: query
+			searchQuery: query,
+			error: null
 		};
 	} catch (e) {
 		console.error('Failed to load manga:', e);
-		throw error(500, { message: 'Failed to load manga' });
+		// Return graceful error instead of 500 so UI can show fallback
+		const sources = getAllSources();
+		return {
+			mangas: [],
+			sources: sources.map((s) => ({ id: s.id, name: s.name })),
+			currentSource: sourceId,
+			currentPage: page,
+			searchQuery: query,
+			error: 'Failed to load manga from this source. Try another source.'
+		};
 	}
 };
