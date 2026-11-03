@@ -34,8 +34,8 @@
 	function scheduleHideControls() {
 		if (hideControlsTimeout) clearTimeout(hideControlsTimeout);
 		hideControlsTimeout = setTimeout(() => {
+			if (showChapterList) return;
 			if (!isZoomed) showControls = false;
-			showChapterList = false;
 		}, HIDE_DELAY);
 	}
 
@@ -44,7 +44,7 @@
 		scheduleHideControls();
 	}
 
-	// Scroll direction: hide controls going down, reveal going up
+	// Scroll down = get the bar out of the way, scroll up = bring it back briefly
 	let scrollTicking = false;
 	function handleScroll() {
 		if (scrollTicking) return;
@@ -52,15 +52,30 @@
 		requestAnimationFrame(() => {
 			const y = window.scrollY;
 			const dy = y - lastScrollY;
-			if (y < 80 || dy < -10) {
+			if (y < 60) {
 				showControls = true;
-			} else if (dy > 10) {
+			} else if (dy > 6) {
 				showControls = false;
 				showChapterList = false;
+			} else if (dy < -6) {
+				showControls = true;
+				scheduleHideControls();
 			}
 			lastScrollY = y;
 			scrollTicking = false;
 		});
+	}
+
+	// Desktop: hover reveals the bar (touch pointers are ignored, they fight scroll-hide)
+	function handlePointerMove(e: PointerEvent) {
+		if (e.pointerType !== 'mouse' || showControls) return;
+		showControls = true;
+		scheduleHideControls();
+	}
+
+	function toggleChapterList() {
+		showChapterList = !showChapterList;
+		if (showChapterList) showControls = true;
 	}
 
 	// Touch handling for swipe navigation
@@ -96,6 +111,15 @@
 			} else if (deltaX < 0 && nextChapter) {
 				goToChapter(nextChapter.id);
 			}
+			return;
+		}
+
+		// Plain tap on a panel = show/hide the bar
+		if (Math.abs(deltaX) < 12 && Math.abs(deltaY) < 12) {
+			showControls = !showControls;
+			if (!showControls) showChapterList = false;
+			else scheduleHideControls();
+			return;
 		}
 
 		scheduleHideControls();
@@ -307,113 +331,137 @@
 	class="reader-container min-h-screen bg-black"
 	ontouchstart={handleTouchStart}
 	ontouchend={handleTouchEnd}
-	onmousemove={showControlsNow}
+	onpointermove={handlePointerMove}
 	role="application"
 	aria-label="Manga Reader"
 >
 	<!-- Reading Progress Bar -->
 	<div class="reader-progress" style="transform: scaleX({(currentPage + 1) / pages.length})"></div>
 
-	<!-- Top Controls -->
+	<!-- Top Controls: one thin row on phones, full bar from sm up -->
 	<header
-		class="fixed top-0 left-0 right-0 z-50 transition-all duration-300 {showControls
-			? 'translate-y-0 opacity-100'
-			: '-translate-y-full opacity-0'}"
+		class="fixed top-0 left-0 right-0 z-50 transition-transform duration-300 ease-out will-change-transform {showControls
+			? 'translate-y-0'
+			: '-translate-y-full'}"
+		onpointerenter={(e) => {
+			if (e.pointerType === 'mouse') showControls = true;
+		}}
 	>
-		<div class="flex items-center justify-between px-2 sm:px-4 py-2 bg-linear-to-b from-black/95 to-transparent backdrop-blur-sm gap-2">
-			<!-- Left: Back button -->
+		<div
+			class="flex items-center gap-0.5 sm:gap-1 h-11 sm:h-14 px-1 sm:px-4 bg-zinc-950/90 backdrop-blur-md border-b border-white/5"
+		>
 			<button
 				onclick={goBack}
-				class="flex items-center gap-2 p-2 sm:px-3 sm:py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors shrink-0"
-				aria-label="Back"
+				aria-label="Back to manga"
+				class="flex items-center justify-center w-10 h-10 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-lg text-zinc-300 active:bg-white/10 sm:hover:bg-white/10 transition-colors shrink-0"
 			>
-				<ArrowLeft class="w-4 h-4" />
-				<span class="hidden sm:inline">Back</span>
+				<ArrowLeft class="w-5 h-5 sm:w-4 sm:h-4" />
+				<span class="hidden sm:inline text-sm ml-1.5">Back</span>
 			</button>
 
-			<!-- Center: Chapter navigation -->
-			<div class="flex items-center justify-center gap-1 sm:gap-2 flex-1 min-w-0">
-				<!-- Prev Chapter -->
-				{#if prevChapter}
-					<button
-						onclick={() => goToChapter(prevChapter.id)}
-						class="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-colors shrink-0"
-						title="Previous Chapter"
-					>
-						<ChevronLeft class="w-4 h-4" />
-					</button>
-				{:else}
-					<div class="w-7 sm:w-8 shrink-0"></div>
-				{/if}
+			{#if prevChapter}
+				<button
+					onclick={() => goToChapter(prevChapter.id)}
+					aria-label="Previous chapter"
+					class="flex items-center justify-center w-10 h-10 rounded-lg text-zinc-300 active:bg-white/10 sm:hover:bg-white/10 transition-colors shrink-0"
+				>
+					<ChevronLeft class="w-5 h-5" />
+				</button>
+			{/if}
 
-				<!-- Chapter Selector -->
-				<div class="relative min-w-0 shrink">
-					<button
-						onclick={() => showChapterList = !showChapterList}
-						class="flex items-center justify-center gap-1 px-2 sm:px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors w-full max-w-[140px] sm:max-w-[300px]"
+			<!-- Chapter title doubles as the chapter picker -->
+			<div class="relative flex-1 min-w-0">
+				<button
+					onclick={toggleChapterList}
+					aria-label="Select chapter"
+					class="flex items-center justify-center gap-1 w-full h-10 px-2 rounded-lg text-zinc-200 active:bg-white/10 sm:hover:bg-white/10 transition-colors"
+				>
+					<span class="truncate text-[13px] sm:text-sm font-medium"
+						>{currentChapter?.title || 'Chapters'}</span
 					>
-						<div class="flex flex-col items-start truncate w-full">
-							<span class="truncate font-medium">{currentChapter?.title || 'Chapters'}</span>
-							{#if currentChapter?.date}
-								<span class="truncate text-[10px] text-zinc-500">{currentChapter.date}</span>
+					<ChevronDown
+						class="w-3.5 h-3.5 shrink-0 opacity-60 transition-transform {showChapterList
+							? 'rotate-180'
+							: ''}"
+					/>
+				</button>
+
+				{#if showChapterList}
+					<div
+						class="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-[92vw] sm:w-80 max-h-[65vh] overflow-y-auto bg-zinc-900/95 backdrop-blur-md border border-zinc-700 rounded-xl shadow-xl z-50"
+					>
+						{#each chapters as chapter}
+							{#if chapter.title}
+								<button
+									onclick={() => goToChapter(chapter.id)}
+									class="w-full px-4 py-3 text-left text-sm transition-colors {chapter.id ===
+									chapterId
+										? 'bg-[var(--color-primary)]/20 text-[var(--color-primary)]'
+										: 'text-zinc-300 hover:bg-white/5'}"
+								>
+									<div class="flex flex-col items-start truncate w-full">
+										<span class="truncate font-medium">{chapter.title}</span>
+										{#if chapter.date}
+											<span class="truncate text-[10px] text-zinc-500"
+												>{chapter.date}</span
+											>
+										{/if}
+									</div>
+								</button>
 							{/if}
-						</div>
-						<ChevronDown class="w-4 h-4 shrink-0 transition-transform {showChapterList ? 'rotate-180' : ''}" />
-					</button>
+						{/each}
+						{#if chapters.length === 0}
+							<p class="px-4 py-3 text-sm text-zinc-500">No chapters available</p>
+						{/if}
 
-					<!-- Chapter Dropdown -->
-					{#if showChapterList}
-						<div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-[85vw] sm:w-80 max-h-[60vh] overflow-y-auto bg-zinc-900/95 backdrop-blur-md border border-zinc-700 rounded-lg shadow-xl z-50">
-							{#each chapters as chapter}
-								{#if chapter.title}
-									<button
-										onclick={() => goToChapter(chapter.id)}
-										class="w-full px-4 py-3 sm:py-2 text-left text-sm hover:bg-[var(--color-primary)]/30 transition-colors {chapter.id === chapterId ? 'bg-[var(--color-primary)]/20 text-[var(--color-primary)]' : 'text-zinc-300'}"
-									>
-										<div class="flex flex-col items-start truncate w-full">
-											<span class="truncate font-medium">{chapter.title}</span>
-											{#if chapter.date}
-												<span class="truncate text-[10px] text-zinc-500">{chapter.date}</span>
-											{/if}
-										</div>
-									</button>
+						<!-- Phones keep reader settings here so the bar stays one line -->
+						<div
+							class="sm:hidden sticky bottom-0 flex items-center justify-between gap-2 px-4 py-2.5 bg-zinc-900 border-t border-zinc-800"
+						>
+							<button
+								onclick={toggleMode}
+								class="flex-1 py-2 bg-white/10 active:bg-white/20 rounded-lg text-xs font-medium"
+							>
+								{readerMode === 'vertical' ? 'Scroll mode' : 'Paged mode'}
+							</button>
+							<button
+								onclick={toggleFullscreen}
+								aria-label="Toggle fullscreen"
+								class="flex items-center justify-center w-10 h-10 bg-white/10 active:bg-white/20 rounded-lg"
+							>
+								{#if isFullscreen}
+									<Minimize2 class="w-4 h-4" />
+								{:else}
+									<Maximize2 class="w-4 h-4" />
 								{/if}
-							{/each}
-							{#if chapters.length === 0}
-								<p class="px-4 py-3 text-sm text-zinc-500">No chapters available</p>
-							{/if}
+							</button>
 						</div>
-					{/if}
-				</div>
-
-				<!-- Next Chapter -->
-				{#if nextChapter}
-					<button
-						onclick={() => goToChapter(nextChapter.id)}
-						class="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-colors shrink-0"
-						title="Next Chapter"
-					>
-						<ChevronRight class="w-4 h-4" />
-					</button>
-				{:else}
-					<div class="w-7 sm:w-8 shrink-0"></div>
+					</div>
 				{/if}
 			</div>
 
-			<!-- Right: Mode & Fullscreen -->
-			<div class="flex items-center gap-1 sm:gap-2 shrink-0">
-				<span class="text-xs text-zinc-500 hidden md:flex items-center mr-1">
-					{currentPage + 1}/{pages.length}
-				</span>
+			{#if nextChapter}
+				<button
+					onclick={() => goToChapter(nextChapter.id)}
+					aria-label="Next chapter"
+					class="flex items-center justify-center w-10 h-10 rounded-lg text-zinc-300 active:bg-white/10 sm:hover:bg-white/10 transition-colors shrink-0"
+				>
+					<ChevronRight class="w-5 h-5" />
+				</button>
+			{/if}
+
+			<!-- Desktop-only extras -->
+			<div class="hidden sm:flex items-center gap-2 shrink-0">
+				<span class="text-xs text-zinc-500 tabular-nums">{currentPage + 1}/{pages.length}</span>
 				<button
 					onclick={toggleMode}
-					class="px-2 sm:px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors"
+					class="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors"
 				>
 					{readerMode === 'vertical' ? 'Scroll' : 'Paged'}
 				</button>
 				<button
 					onclick={toggleFullscreen}
-					class="p-1.5 sm:px-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+					class="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
 					title="Toggle Fullscreen"
 				>
 					{#if isFullscreen}
@@ -428,7 +476,7 @@
 
 	<!-- Vertical Mode -->
 	{#if readerMode === 'vertical'}
-		<div class="reader-pages flex flex-col items-center pt-14 pb-8">
+		<div class="reader-pages flex flex-col items-center pt-11 sm:pt-14 pb-8">
 			{#each pages as pageUrl, i}
 				<img
 					src={proxyImage(pageUrl)}
@@ -436,7 +484,6 @@
 					loading={i < 3 ? 'eager' : 'lazy'}
 					class="reader-image"
 					ondblclick={toggleZoom}
-					ontouchend={handleTouchEnd}
 				/>
 			{/each}
 
@@ -478,7 +525,7 @@
 	{:else}
 		<!-- Horizontal Mode -->
 		<div
-			class="flex items-center justify-center min-h-screen pt-14 cursor-pointer"
+			class="flex items-center justify-center min-h-screen pt-11 sm:pt-14 cursor-pointer"
 			role="button"
 			tabindex="0"
 			onclick={nextPage}
@@ -562,14 +609,6 @@
 	/* Smooth header transitions */
 	header {
 		transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
-	}
-
-	/* Phone: every control in the reader bar is a proper thumb target */
-	@media (max-width: 640px) {
-		header button {
-			min-width: 44px;
-			min-height: 44px;
-		}
 	}
 
 	/* Chapter dropdown animation */
