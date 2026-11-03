@@ -4,71 +4,114 @@ import * as cheerio from 'cheerio';
 
 /**
  * AsuraScans Adapter (asurascans.com)
- * Updated for new Astro-based site structure (2026).
- * Note: Cloudflare protection may block automated requests.
+ * Astro-based site structure (2026). Cloudflare may block automated requests.
+ * - Details: #description-text for synopsis, a[href*="/browse?genres="] for genres,
+ *   a[href*="/browse?author="] / a[href*="/browse?artist="] for credits.
+ * - Status lives in a card labelled "Status" whose value is the following bold span.
  */
 export class AsuraSource extends BaseSource {
 	id = 'asura';
 	name = 'Asura Scans';
 	baseUrl = 'https://asurascans.com';
 
-	async getLatestManga(page: number): Promise<Manga[]> {
+	private clean(s: string): string {
+		return (s || '').replace(/\s+/g, ' ').trim();
+	}
+
+	private cards($: cheerio.CheerioAPI): Manga[] {
 		const res: Manga[] = [];
+		$('.series-card').each((_, el) => {
+			const $card = $(el);
+			const link = $card.find('a[href^="/comics/"]').first().attr('href') || '';
+			const image = $card.find('img').first().attr('src') || '';
+			const title = this.clean($card.find('h3').first().text());
+
+			if (title && link) {
+				const cleanLink = link.startsWith('/') ? link : `/${link}`;
+				res.push({
+					id: cleanLink,
+					title,
+					cover: image.startsWith('http') ? image : `https:${image}`,
+					sourceId: this.id
+				});
+			}
+		});
+		return res.filter((m, i, a) => a.findIndex((x) => x.id === m.id) === i);
+	}
+
+	async getLatestManga(page: number): Promise<Manga[]> {
 		try {
 			const html = await this.fetchHtml(`/browse/comics?page=${page}`);
-			const $ = cheerio.load(html);
-
-			$('.series-card').each((_, el) => {
-				const $card = $(el);
-				const link = $card.find('a[href^="/comics/"]').first().attr('href') || '';
-				const image = $card.find('img').first().attr('src') || '';
-				const title = $card.find('h3').first().text().trim();
-
-				if (title && link) {
-					const cleanLink = link.startsWith('/') ? link : `/${link}`;
-					res.push({
-						id: cleanLink,
-						title,
-						cover: image.startsWith('http') ? image : `https:${image}`,
-						sourceId: this.id
-					});
-				}
-			});
+			return this.cards(cheerio.load(html));
 		} catch (e) {
 			console.error('[Asura] getLatestManga failed:', e);
+			return [];
 		}
-
-		return res;
 	}
 
 	async searchManga(query: string): Promise<Manga[]> {
-		const res: Manga[] = [];
 		try {
-			const encodedQuery = encodeURIComponent(query);
-			const html = await this.fetchHtml(`/browse/comics?search=${encodedQuery}&page=1`);
-			const $ = cheerio.load(html);
-
-			$('.series-card').each((_, el) => {
-				const $card = $(el);
-				const link = $card.find('a[href^="/comics/"]').first().attr('href') || '';
-				const image = $card.find('img').first().attr('src') || '';
-				const title = $card.find('h3').first().text().trim();
-
-				if (title && link) {
-					const cleanLink = link.startsWith('/') ? link : `/${link}`;
-					res.push({
-						id: cleanLink,
-						title,
-						cover: image.startsWith('http') ? image : `https:${image}`,
-						sourceId: this.id
-					});
-				}
-			});
+			const html = await this.fetchHtml(`/browse/comics?search=${encodeURIComponent(query)}&page=1`);
+			return this.cards(cheerio.load(html));
 		} catch (e) {
 			console.error('[Asura] searchManga failed:', e);
+			return [];
 		}
+	}
 
-		return res;
+	/** Value of the "Status"/"Type" info card: label div followed by bold value span. */
+	private infoCard($: cheerio.CheerioAPI, label: string): string {
+		let value = '';
+		$('div.text-xs').each((_, el) => {
+			const $label = $(el);
+			if (this.clean($label.text()).toLowerCase() !== label.toLowerCase()) return;
+			const fromCard = this.clean($label.parent().find('span.text-base').first().text());
+			if (fromCard) value = fromCard;
+		});
+		return value;
+	}
+
+	private extractGenres($: cheerio.CheerioAPI): string[] {
+		const genres: string[] = [];
+		$('a[href*="genres="]').each((_, el) => {
+			const g = this.clean($(el).text());
+			if (g && !genres.some((x) => x.toLowerCase() === g.toLowerCase())) genres.push(g);
+		});
+		if (genres.length) return genres;
+
+		// Fallback: JSON-LD genre array
+		$('script[type="application/ld+json"]').each((_, el) => {
+			try {
+				const raw = JSON.parse($(el).html() || '{}');
+				const nodes = Array.isArray(raw) ? raw : [raw, ...(raw['@graph'] || [])];
+				for (const node of nodes) {
+					const list = node?.genre;
+					if (!list) continue;
+					for (const g of Array.isArray(list) ? list : [list]) {
+						const name = this.clean(String(g));
+						if (name && !genres.some((x) => x.toLowerCase() === name.toLowerCase())) genres.push(name);
+					}
+				}
+			} catch {
+				/* ignore malformed JSON-LD */
+			}
+		});
+		return genres;
+	}
+
+	private extractAuthors($: cheerio.CheerioAPI): string[] {
+		const authors: string[] = [];
+		$('a[href*="/browse?author="], a[href*="/browse?artist="]').each((_, el) => {
+			const name = this.clean($(el).text());
+			if (name && !authors.includes(name)) authors.push(name);
+		});
+		return authors;
+	}
+
+	private extractDescription($: cheerio.CheerioAPI): string {
+		const primary = this.clean($('#description-text').first().text());
+		if (primary) return primary;
+		return this.clean($('.series-description, .prose').first().text());
 	}
 
 	async getMangaDetails(mangaId: string): Promise<MangaDetails> {
@@ -80,54 +123,53 @@ export class AsuraSource extends BaseSource {
 		const html = await this.fetchHtml(normalizedId);
 		const $ = cheerio.load(html);
 
-		// Extract basic info
-		const title = $('h1').first().text().trim() || normalizedId;
+		const title = this.clean($('h1').first().text()) || normalizedId;
 		const cover = $('img[alt*="cover"], .series-cover img, img[src*="covers/"]').first().attr('src') || '';
-		const description = $('#description-text, .series-description, .prose').first().text().trim();
 
-		// Extract chapters from chapter list - new Astro structure
-		const chapters: Chapter[] = [];
-		
-		// Chapter links are: /comics/{slug}/chapter/{num}
+		// Chapter links are: /comics/{slug}/chapter/{num}. The page repeats the list
+		// across tab panels, so dedupe by chapter id.
 		const mangaSlug = normalizedId.replace('/comics/', '');
-		const chapterLinks = $(`a[href^="/comics/${mangaSlug}/chapter/"]`);
+		const chapters: Chapter[] = [];
+		const seen = new Set<string>();
 
-				chapterLinks.each((i, el) => {
-							const $el = $(el);
-							const link = $el.attr('href') || '';
-			
-							// Chapter title and date are in separate elements
-							// Title: span.font-medium, Date: span.text-sm.text-white/40
-							const chapterTitle = $el.find('span.font-medium').first().text().trim();
-							const chapterDate = $el.find('span.text-sm.text-white/40, span.text-white/40, span[class*="text-white/40"]').first().text().trim();
+		$(`a[href^="/comics/${mangaSlug}/chapter/"]`).each((_, el) => {
+			const $el = $(el);
+			const link = $el.attr('href') || '';
+			if (!link) return;
+			// Skip the hero "First Chapter"/"Continue" button
+			if ($el.find('[data-continue-label]').length || $el.find('svg.lucide-eye').length) return;
 
-							if (link) {
-								// Extract chapter number from URL (more reliable than title)
-								const numMatch = link.match(/\/chapter\/(\d+(?:\.\d+)?)/i);
-								const number = numMatch ? parseFloat(numMatch[1]) : 0;
+			const cleanLink = link.startsWith('/') ? link : `/${link}`;
+			if (seen.has(cleanLink)) return;
+			seen.add(cleanLink);
 
-								const cleanLink = link.startsWith('/') ? link : `/${link}`;
-								chapters.push({
-									id: cleanLink,
-									title: chapterTitle || `Chapter ${number}`,
-									number,
-									date: chapterDate
-								});
-							}
-						});
+			const numMatch = link.match(/\/chapter\/(\d+(?:[.-]\d+)?)/i);
+			const number = numMatch ? parseFloat(numMatch[1]) : 0;
 
-		// Sort by chapter number descending (latest first)
+			const chapterTitle = this.clean($el.find('span.font-medium').first().text());
+			const chapterDate = this.clean($el.find('span.text-sm.text-white\\/40, span[class*="text-white/40"]').first().text());
+
+			chapters.push({
+				id: cleanLink,
+				title: chapterTitle || (number ? `Chapter ${number}` : 'Chapter'),
+				number,
+				date: chapterDate
+			});
+		});
+
 		chapters.sort((a, b) => b.number - a.number);
+
+		const status = this.infoCard($, 'Status');
 
 		return {
 			id: normalizedId,
 			sourceId: this.id,
 			title,
-			cover: cover.startsWith('http') ? cover : (cover ? `https:${cover}` : ''),
-			description: description || '',
-			authors: [],
-			status: 'Ongoing',
-			genres: [],
+			cover: cover.startsWith('http') ? cover : cover ? `https:${cover}` : '',
+			description: this.extractDescription($),
+			authors: this.extractAuthors($),
+			status: status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Ongoing',
+			genres: this.extractGenres($),
 			chapters
 		};
 	}
@@ -143,7 +185,7 @@ export class AsuraSource extends BaseSource {
 
 		const images: string[] = [];
 
-		// Try to find images in Next.js script data
+		// Try to find images in embedded script data
 		const scripts = $('script').toArray();
 		for (const script of scripts) {
 			const content = $(script).html() || '';
@@ -151,7 +193,7 @@ export class AsuraSource extends BaseSource {
 				const matches = content.match(/(?:pages|images|imageUrls|chapterImages)\s*[=:]\s*(\[.*?\])/s);
 				if (matches && matches[1]) {
 					try {
-						const pages = JSON.parse(matches[1]) as Array<{url: string} | string>;
+						const pages = JSON.parse(matches[1]) as Array<{ url: string } | string>;
 						for (const page of pages) {
 							const url = typeof page === 'string' ? page : page.url;
 							if (url) {
@@ -159,7 +201,9 @@ export class AsuraSource extends BaseSource {
 							}
 						}
 						if (images.length > 0) return images;
-					} catch {}
+					} catch {
+						/* ignore unparsable payload */
+					}
 				}
 			}
 		}
