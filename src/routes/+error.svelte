@@ -1,12 +1,7 @@
 <script lang="ts">
-	import type { PageProps } from '@sveltejs/kit';
 	import { ArrowLeft, Home, RefreshCw, Library } from 'lucide-svelte';
 
-	let { status, message } = $props() as PageProps['error'] & { status: number; message: string };
-	
-	// Provide defaults if not set
-	status = status || 500;
-	message = message || 'Internal Server Error';
+	let { status = 500, message = 'Internal Server Error' }: { status?: number; message?: string } = $props();
 </script>
 
 <svelte:head>

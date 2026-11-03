@@ -11,26 +11,17 @@
 	let currentPage = $state(0);
 	let readerMode = $state<'vertical' | 'horizontal'>('vertical');
 	let showControls = $state(true);
+	let showChapterList = $state(false);
 	let lastScrollY = $state(0);
 	let isFullscreen = $state(false);
-	let showChapterList = $state(false);
-	
-	// Error handling
-	function retryLoad() {
-		window.location.reload();
-	}
-
-	function changeSource(newSource: string) {
-		goto(`/?source=${newSource}`);
-	}
+	let isZoomed = $state(false);
+	let zoomLevel = $state(1);
 
 	// Mobile touch handling
 	let touchStartX = $state(0);
 	let touchStartY = $state(0);
 	let touchStartTime = $state(0);
 	let lastTapTime = $state(0);
-	let zoomLevel = $state(1);
-	let isZoomed = $state(false);
 
 	// Auto-hide controls with delay
 	let hideControlsTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -63,7 +54,7 @@
 
 	function handleTouchEnd(e: TouchEvent) {
 		if (isZoomed || readerMode !== 'vertical') return;
-		
+
 		const touch = e.changedTouches[0];
 		const deltaX = touch.clientX - touchStartX;
 		const deltaY = touch.clientY - touchStartY;
@@ -87,14 +78,14 @@
 				goToChapter(nextChapter.id);
 			}
 		}
-		
+
 		scheduleHideControls();
 	}
 
 	function toggleZoom(e: TouchEvent | MouseEvent) {
 		const target = e.target as HTMLElement;
 		if (target.tagName !== 'IMG') return;
-		
+
 		isZoomed = !isZoomed;
 		if (isZoomed) {
 			zoomLevel = 2;
@@ -135,14 +126,14 @@
 	$effect(() => {
 		if (pages.length > 0 && mangaInfo) {
 			saveReading({
-				source,
+				sourceId: source,
 				mangaId: mangaInfo.id,
+				mangaSlug: mangaInfo.slug || '',
 				mangaTitle: mangaInfo.title,
-				mangaCover: mangaInfo.cover,
+				cover: mangaInfo.cover,
 				chapterId,
 				chapterTitle: currentChapter?.title || '',
-				page: currentPage,
-				slug: mangaInfo.slug
+				chapterNumber: currentChapter?.number || 0
 			});
 		}
 	});
@@ -151,7 +142,7 @@
 	$effect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
 			if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-			
+
 			switch (e.key) {
 				case 'ArrowRight':
 				case ' ':
@@ -190,7 +181,7 @@
 					break;
 			}
 		}
-		
+
 		document.addEventListener('keydown', handleKeyDown);
 		return () => document.removeEventListener('keydown', handleKeyDown);
 	});
@@ -223,6 +214,15 @@
 		document.addEventListener('fullscreenchange', onFullscreenChange);
 		return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
 	});
+
+	// Error handling
+	function retryLoad() {
+		window.location.reload();
+	}
+
+	function changeSource(newSource: string) {
+		goto(`/?source=${newSource}`);
+	}
 </script>
 
 <svelte:head>
@@ -237,7 +237,7 @@
 			<AlertCircle class="w-16 h-16 text-red-500/80 mx-auto mb-4" />
 			<h1 class="text-2xl font-bold text-white mb-2">Unable to Load Chapter</h1>
 			<p class="text-zinc-400 mb-6">{error || 'Chapter not found or has no pages'}</p>
-			
+
 			<div class="flex flex-col sm:flex-row gap-3 justify-center items-center">
 				<button
 					onclick={retryLoad}
@@ -246,7 +246,7 @@
 					<RefreshCw class="w-5 h-5" />
 					Retry
 				</button>
-				
+
 				{#if mangaInfo?.slug}
 					<a
 						href="/manga/{source}/{mangaInfo.slug}"
@@ -264,7 +264,7 @@
 						Go Back
 					</button>
 				{/if}
-				
+
 				<button
 					onclick={() => changeSource(source === 'komiku' ? 'asura' : 'komiku')}
 					class="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg text-sm transition-colors"
@@ -272,7 +272,7 @@
 					Try {source === 'komiku' ? 'Asura' : 'Komiku'} instead
 				</button>
 			</div>
-			
+
 			{#if mangaInfo?.slug}
 				<p class="mt-6 text-sm text-zinc-500">
 					Or try a different chapter from the <a href="/manga/{source}/{mangaInfo.slug}" class="text-[var(--color-primary)] hover:underline">manga page</a>
@@ -292,7 +292,7 @@
 >
 	<!-- Reading Progress Bar -->
 	<div class="reader-progress" style="transform: scaleX({(currentPage + 1) / pages.length})"></div>
-	
+
 	<!-- Top Controls -->
 	<header
 		class="fixed top-0 left-0 right-0 z-50 transition-all duration-300 {showControls
@@ -341,30 +341,28 @@
 					</button>
 
 					<!-- Chapter Dropdown -->
-									{#if showChapterList}
-										<div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-[85vw] sm:w-80 max-h-[60vh] overflow-y-auto bg-zinc-900/95 backdrop-blur-md border border-zinc-700 rounded-lg shadow-xl z-50">
-											{#each chapters as chapter}
-												{#if chapter.title}
-													<button
-														onclick={() => goToChapter(chapter.id)}
-														class="w-full px-4 py-3 sm:py-2 text-left text-sm hover:bg-[var(--color-primary)]/30 transition-colors {chapter.id === chapterId ? 'bg-[var(--color-primary)]/20 text-[var(--color-primary)]' : 'text-zinc-300'}"
-													>
-														<div class="flex flex-col items-start truncate w-full">
-															{#if chapter.title.match(/^(Chapter\s+\d+(?:\.\d+)?)(.+)$/i)}
-																<span class="truncate font-medium">{chapter.title.match(/^(Chapter\s+\d+(?:\.\d+)?)(.+)$/i)[1].trim()}</span>
-																<span class="truncate text-[10px] text-zinc-500">{chapter.title.match(/^(Chapter\s+\d+(?:\.\d+)?)(.+)$/i)[2].trim()}</span>
-															{:else}
-																<span class="truncate">{chapter.title}</span>
-															{/if}
-														</div>
-													</button>
-												{/if}
-											{/each}
-											{#if chapters.length === 0}
-												<p class="px-4 py-3 text-sm text-zinc-500">No chapters available</p>
+					{#if showChapterList}
+						<div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-[85vw] sm:w-80 max-h-[60vh] overflow-y-auto bg-zinc-900/95 backdrop-blur-md border border-zinc-700 rounded-lg shadow-xl z-50">
+							{#each chapters as chapter}
+								{#if chapter.title}
+									<button
+										onclick={() => goToChapter(chapter.id)}
+										class="w-full px-4 py-3 sm:py-2 text-left text-sm hover:bg-[var(--color-primary)]/30 transition-colors {chapter.id === chapterId ? 'bg-[var(--color-primary)]/20 text-[var(--color-primary)]' : 'text-zinc-300'}"
+									>
+										<div class="flex flex-col items-start truncate w-full">
+											<span class="truncate font-medium">{chapter.title}</span>
+											{#if chapter.date}
+												<span class="truncate text-[10px] text-zinc-500">{chapter.date}</span>
 											{/if}
 										</div>
-									{/if}
+									</button>
+								{/if}
+							{/each}
+							{#if chapters.length === 0}
+								<p class="px-4 py-3 text-sm text-zinc-500">No chapters available</p>
+							{/if}
+						</div>
+					{/if}
 				</div>
 
 				<!-- Next Chapter -->
@@ -422,39 +420,39 @@
 			{/each}
 
 			<!-- End of chapter navigation -->
-							<div class="flex flex-col items-center gap-4 py-8 px-4">
-								<p class="text-zinc-500 text-sm">End of chapter</p>
-								<div class="flex gap-3 w-full max-w-xs justify-center">
-									{#if prevChapter}
-										<button
-											onclick={() => goToChapter(prevChapter.id)}
-											class="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm transition-colors flex-1 justify-center"
-										>
-											<ChevronLeft class="w-4 h-4" />
-											<div class="text-left hidden sm:block">
-												<div class="truncate font-medium">{prevChapter.title?.match(/^(Chapter\s+\d+(?:\.\d+)?)(.+)$/i)?.[1]?.trim() || prevChapter.title || 'Previous'}</div>
-												{#if prevChapter.title?.match(/^(Chapter\s+\d+(?:\.\d+)?)(.+)$/i)?.[2]}
-													<div class="truncate text-[10px] text-zinc-500">{prevChapter.title.match(/^(Chapter\s+\d+(?:\.\d+)?)(.+)$/i)[2].trim()}</div>
-												{/if}
-											</div>
-										</button>
-									{/if}
-									{#if nextChapter}
-										<button
-											onclick={() => goToChapter(nextChapter.id)}
-											class="flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] hover:opacity-90 rounded-lg text-sm font-medium transition-colors flex-1 justify-center"
-										>
-											<div class="text-right hidden sm:block">
-												<div class="truncate font-medium">{nextChapter.title?.match(/^(Chapter\s+\d+(?:\.\d+)?)(.+)$/i)?.[1]?.trim() || nextChapter.title || 'Next'}</div>
-												{#if nextChapter.title?.match(/^(Chapter\s+\d+(?:\.\d+)?)(.+)$/i)?.[2]}
-													<div class="truncate text-[10px] text-zinc-500">{nextChapter.title.match(/^(Chapter\s+\d+(?:\.\d+)?)(.+)$/i)[2].trim()}</div>
-												{/if}
-											</div>
-											<ChevronRight class="w-4 h-4" />
-										</button>
-									{/if}
-								</div>
+			<div class="flex flex-col items-center gap-4 py-8 px-4">
+				<p class="text-zinc-500 text-sm">End of chapter</p>
+				<div class="flex gap-3 w-full max-w-xs justify-center">
+					{#if prevChapter}
+						<button
+							onclick={() => goToChapter(prevChapter.id)}
+							class="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm transition-colors flex-1 justify-center"
+						>
+							<ChevronLeft class="w-4 h-4" />
+							<div class="text-left hidden sm:block">
+								<div class="truncate font-medium">{prevChapter.title}</div>
+								{#if prevChapter.date}
+									<div class="truncate text-[10px] text-zinc-500">{prevChapter.date}</div>
+								{/if}
 							</div>
+						</button>
+					{/if}
+					{#if nextChapter}
+						<button
+							onclick={() => goToChapter(nextChapter.id)}
+							class="flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] hover:opacity-90 rounded-lg text-sm font-medium transition-colors flex-1 justify-center"
+						>
+							<div class="text-right hidden sm:block">
+								<div class="truncate font-medium">{nextChapter.title}</div>
+								{#if nextChapter.date}
+									<div class="truncate text-[10px] text-zinc-500">{nextChapter.date}</div>
+								{/if}
+							</div>
+							<ChevronRight class="w-4 h-4" />
+						</button>
+					{/if}
+				</div>
+			</div>
 		</div>
 	{:else}
 		<!-- Horizontal Mode -->
@@ -614,7 +612,7 @@
 		from { opacity: 0; transform: translateY(20px); }
 		to { opacity: 1; transform: translateY(0); }
 	}
-	
+
 	.min-h-screen > div:first-child {
 		animation: fadeIn 0.4s ease-out;
 	}

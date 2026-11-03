@@ -20,23 +20,24 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
 		const manga = await adapter.getMangaDetails(mangaId);
 
 		// Parse chapter titles to separate title from date for ALL chapters
-		const parsedChapters = (manga.chapters || []).map(ch => {
-			let title = ch.title || '';
-			let date = ch.date || '';
-			
-			// If date field exists and title ends with date, remove date from title
-			if (date && title.endsWith(date)) {
-				title = title.slice(0, -date.length).trim();
-			} else {
-				// Fallback: regex parse
-				const match = title.match(/^(Chapter\s+\d+(?:\.\d+)?)(.+)$/i);
-				if (match) {
-					title = match[1].trim();
-					date = match[2].trim() || date;
-				}
-			}
-			return { ...ch, title, date };
-		});
+		        const parsedChapters = (manga.chapters || []).map(ch => {
+		            let title = ch.title || '';
+		            let date = ch.date || '';
+
+		            // If date field exists and title ends with date, remove date from title
+		            if (date && title.endsWith(date)) {
+		                title = title.slice(0, -date.length).trim();
+		            } else {
+		                // Fallback: regex parse - only if title has extra content beyond "Chapter N"
+		                // Use non-greedy match for chapter number to avoid backtracking
+		                const match = title.match(/^(Chapter\s+\d+(?:\.\d+)?)\s*(.*)$/i);
+		                if (match && match[2]) {
+		                    title = match[1].trim();
+		                    date = match[2].trim() || date;
+		                }
+		            }
+		            return { ...ch, title, date };
+		        });
 
 		const mangaWithParsedChapters = { ...manga, chapters: parsedChapters };
 

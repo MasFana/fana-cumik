@@ -49,6 +49,7 @@ interface MDAtHomeResponse {
 	chapter: {
 		hash: string;
 		data: string[];
+		dataSaver?: string[];
 	};
 }
 
@@ -79,7 +80,7 @@ export class MangadexSource extends BaseSource {
 
 	private toManga(item: MDItem): Manga {
 		return {
-			id: item.id,
+			id: `/${item.id}`,
 			title: this.titleStr(item.attributes),
 			cover: this.coverUrl(item.id, item.relationships),
 			sourceId: this.id
@@ -100,9 +101,10 @@ export class MangadexSource extends BaseSource {
 		}
 	}
 
-	async searchManga(query: string): Promise<Manga[]> {
+	async searchManga(query: string, page = 1): Promise<Manga[]> {
 		try {
-			const url = `/manga?title=${encodeURIComponent(query)}&limit=20&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive`;
+			const offset = (page - 1) * 20;
+			const url = `/manga?title=${encodeURIComponent(query)}&limit=20&offset=${offset}&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive`;
 			const data = await this.fetchJson<MDResponse>(url);
 			return (data.data || []).map((item) => this.toManga(item));
 		} catch (e) {
@@ -130,18 +132,23 @@ export class MangadexSource extends BaseSource {
 		const description =
 			attrs.description?.['en'] || Object.values(attrs.description || {})[0] || '';
 
-		// Fetch chapter list
+		// Fetch chapter list - try EN + ID first, fallback to all languages
 		const chapUrl =
-			`/manga/${mangaId}/feed?translatedLanguage[]=en` +
+			`/manga/${mangaId}/feed?translatedLanguage[]=en&translatedLanguage[]=id` +
 			`&order[chapter]=desc&limit=100&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica&contentRating[]=pornographic`;
 		let chapters: Chapter[] = [];
 		try {
-			const chapData = await this.fetchJson<MDChapterResponse>(chapUrl);
+			let chapData = await this.fetchJson<MDChapterResponse>(chapUrl);
+			if (!chapData.data || chapData.data.length === 0) {
+				const fallbackUrl = `/manga/${mangaId}/feed?order[chapter]=desc&limit=100&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica&contentRating[]=pornographic`;
+				chapData = await this.fetchJson<MDChapterResponse>(fallbackUrl);
+			}
+
 			chapters = (chapData.data || []).map((c) => {
 				const num = parseFloat(c.attributes.chapter || '0') || 0;
 				return {
-					id: `/manga/${mangaId}/chapter/${c.id}`,
-					title: c.attributes.title || `Chapter ${num}`,
+					id: `/${mangaId}/chapter/${c.id}`,
+					title: c.attributes.title || (c.attributes.chapter ? `Chapter ${num}` : 'Oneshot'),
 					number: num,
 					date: c.attributes.publishAt || ''
 				};
@@ -151,7 +158,7 @@ export class MangadexSource extends BaseSource {
 		}
 
 		return {
-			id: mangaId,
+			id: `/${mangaId}`,
 			sourceId: this.id,
 			title: this.titleStr(attrs),
 			cover: this.coverUrl(mangaId, item.relationships),
@@ -165,8 +172,10 @@ export class MangadexSource extends BaseSource {
 
 	async getChapterPages(chapterId: string): Promise<string[]> {
 		const id = this.normalizeId(chapterId).split('/').filter(Boolean).at(-1) || '';
-		const data = await this.fetchJson<MDAtHomeResponse>(`/at-home/server/${id}`);
+		const data = await this.fetchJson<MDAtHomeResponse>(`/at-home/server/${id}?forcePort443=true`);
 		const { baseUrl, chapter } = data;
-		return (chapter.data || []).map((fn) => `${baseUrl}/data/${chapter.hash}/${fn}`);
+		const files: string[] = chapter.data && chapter.data.length > 0 ? chapter.data : (chapter.dataSaver || []);
+		const folder = chapter.data && chapter.data.length > 0 ? 'data' : 'data-saver';
+		return files.map((fn: string) => `${baseUrl}/${folder}/${chapter.hash}/${fn}`);
 	}
 }

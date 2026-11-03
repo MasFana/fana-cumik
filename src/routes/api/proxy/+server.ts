@@ -26,26 +26,63 @@ export const GET: RequestHandler = async ({ url }) => {
 		// Decode the URL if it's encoded
 		const decodedUrl = decodeURIComponent(targetUrl);
 
-		// Determine referer based on source or target URL
+		// Determine referer and user-agent based on source or target URL
 		let referer = new URL(decodedUrl).origin;
-		if (sourceId) {
-			// Map source IDs to their base URLs for proper referer
-			const sourceReferers: Record<string, string> = {
-				asura: 'https://asurascans.com',
-				komiku: 'https://komiku.org'
-				// Add more as needed
-			};
-			referer = sourceReferers[sourceId] || referer;
+		let userAgent = USER_AGENT;
+
+		const isMangadex =
+			sourceId === 'mangadex' ||
+			decodedUrl.includes('mangadex.org') ||
+			decodedUrl.includes('mangadex.network');
+		const isKomiku =
+			sourceId === 'komiku' ||
+			decodedUrl.includes('komiku.org') ||
+			decodedUrl.includes('komiku.to') ||
+			decodedUrl.includes('komikid.org');
+		const isAsura =
+			sourceId === 'asura' ||
+			decodedUrl.includes('asurascans.com') ||
+			decodedUrl.includes('asuracomic.net');
+
+		if (isMangadex) {
+			userAgent = 'fana-cumik/1.0';
+			referer = 'https://mangadex.org';
+		} else if (isKomiku) {
+			referer = 'https://komiku.org/';
+		} else if (isAsura) {
+			referer = 'https://asurascans.com';
 		}
 
 		// Fetch the image from the original source
-		const imageResponse = await fetch(decodedUrl, {
+		let imageResponse = await fetch(decodedUrl, {
 			headers: {
-				'User-Agent': USER_AGENT,
+				'User-Agent': userAgent,
 				Referer: referer,
 				Accept: 'image/webp,image/apng,image/*,*/*;q=0.8'
 			}
 		});
+
+		// Fallback for MangaDex Network node failure (e.g. 404, 500, network error)
+		if (!imageResponse.ok && isMangadex && decodedUrl.includes('.mangadex.network/')) {
+			const fallbackUrl = decodedUrl.replace(
+				/^https:\/\/[^/]+\.mangadex\.network\//,
+				'https://uploads.mangadex.org/'
+			);
+			try {
+				const fbResponse = await fetch(fallbackUrl, {
+					headers: {
+						'User-Agent': userAgent,
+						Referer: referer,
+						Accept: 'image/webp,image/apng,image/*,*/*;q=0.8'
+					}
+				});
+				if (fbResponse.ok) {
+					imageResponse = fbResponse;
+				}
+			} catch {
+				// Keep original response on fallback error
+			}
+		}
 
 		if (!imageResponse.ok) {
 			return new Response(`Failed to fetch image: ${imageResponse.status}`, {
