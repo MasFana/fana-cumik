@@ -71,6 +71,29 @@ export class OmegaSource extends BaseSource {
 		return id.replace(/^\/series\//, '').replace(/\/$/, '').trim();
 	}
 
+	/** Omega descriptions arrive as HTML for some series — strip tags/entities. */
+	private stripHtml(input: string): string {
+		if (!input) return '';
+		return input
+			.replace(/<br\s*\/?>/gi, '\n')
+			.replace(/<\/p>/gi, '\n')
+			.replace(/<[^>]*>/g, '')
+			.replace(/&nbsp;/gi, ' ')
+			.replace(/&amp;/gi, '&')
+			.replace(/&lt;/gi, '<')
+			.replace(/&gt;/gi, '>')
+			.replace(/&quot;/gi, '"')
+			.replace(/&#0?39;|&apos;/gi, "'")
+			.replace(/&ldquo;|&rdquo;/gi, '"')
+			.replace(/&lsquo;|&rsquo;/gi, "'")
+			.replace(/&hellip;/gi, '…')
+			.replace(/&mdash;/gi, '—')
+			.replace(/&ndash;/gi, '–')
+			.replace(/[ 	]+/g, ' ')
+			.replace(/\n{3,}/g, '\n\n')
+			.trim();
+	}
+
 	private toManga(item: OmegaItem): Manga {
 		return {
 			id: `/series/${item.series_slug}`,
@@ -137,7 +160,7 @@ export class OmegaSource extends BaseSource {
 			sourceId: this.id,
 			title: detail.title,
 			cover: detail.thumbnail || '',
-			description: detail.description || '',
+			description: this.stripHtml(detail.description || ''),
 			authors,
 			status: detail.status || 'Ongoing',
 			genres,
