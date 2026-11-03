@@ -2,6 +2,12 @@ import { BaseSource } from '../BaseSource';
 import type { Manga, MangaDetails, Chapter } from '../types';
 import * as cheerio from 'cheerio';
 
+/**
+ * VortexScans Adapter (vortexscans.org)
+ * - Listing/search: /series?page=N | /series?searchTerm=...
+ * - Details: HTML SSR. Description div[itemprop="description"], genres a[href*="genres="].
+ * - Chapters: <dl> metadata + chapter anchors with span.font-medium title and <time> date.
+ */
 export class VortexSource extends BaseSource {
 	id = 'vortex';
 	name = 'VortexScans';
@@ -14,14 +20,20 @@ export class VortexSource extends BaseSource {
 		return `${this.baseUrl}${src.startsWith('/') ? '' : '/'}${src}`;
 	}
 
+	private clean(s: string): string {
+		return (s || '').replace(/\s+/g, ' ').trim();
+	}
+
 	private cards($: cheerio.CheerioAPI): Manga[] {
 		const res: Manga[] = [];
 		$('a[href*="/series/"]').each((_, el) => {
 			const $a = $(el);
 			const href = $a.attr('href') || '';
+			// Chapter links live under /series/<slug>/chapter-... — never treat as manga
+			if (/\/chapter[-/]/i.test(href)) return;
 			const img = $a.find('img').first();
 			const src = img.attr('src') || img.attr('data-src') || '';
-			const title = img.attr('alt') || $a.find('h3, h2, .title').first().text().trim();
+			const title = this.clean(img.attr('alt') || '') || this.clean($a.find('h3, h2, .title').first().text());
 			if (href && title) {
 				const id = href.startsWith('http') ? new URL(href).pathname : href;
 				res.push({ id, title, cover: this.abs(src), sourceId: this.id });
@@ -51,45 +63,124 @@ export class VortexSource extends BaseSource {
 		}
 	}
 
+	/** Read the <dl> metadata rows: <dt>Label</dt><dd>value</dd> */
+	private metaMap($: cheerio.CheerioAPI): Record<string, string> {
+		const out: Record<string, string> = {};
+		$('dl dt').each((_, el) => {
+			const $dt = $(el);
+			const key = this.clean($dt.text()).toLowerCase();
+			const val = this.clean($dt.next('dd').text());
+			if (key && val) out[key] = val;
+		});
+		return out;
+	}
+
+	private extractGenres($: cheerio.CheerioAPI): string[] {
+		const genres: string[] = [];
+		$('a[itemprop="genre"], a[href*="genres="]').each((_, el) => {
+			const g = this.clean($(el).text());
+			if (g && !genres.some((x) => x.toLowerCase() === g.toLowerCase())) genres.push(g);
+		});
+		return genres;
+	}
+
+	private extractDescription($: cheerio.CheerioAPI): string {
+		const primary = this.clean($('[itemprop="description"]').first().text());
+		if (primary) return primary;
+		const fallback = this.clean($('.description, .synopsis, .summary').first().text());
+		if (fallback) return fallback;
+		// Last resort: the "Summary" tab panel body
+		const panel = $('section[data-series-tab-panel="description"]').first().text();
+		return this.clean(panel);
+	}
+
+	private extractChapters($: cheerio.CheerioAPI, slug: string): Chapter[] {
+		const chapters: Chapter[] = [];
+		const seen = new Set<string>();
+		const scope = slug ? `a[href*="/series/${slug}/chapter"]` : 'a[href*="/chapter"]';
+
+		$(scope).each((_, el) => {
+			const $el = $(el);
+			const href = $el.attr('href') || '';
+			if (!href) return;
+			// Skip the hero "Start Reading" button
+			if ($el.find('[data-continue-label]').length || /start reading/i.test($el.text())) return;
+
+			const id = href.startsWith('http') ? new URL(href).pathname : href;
+			if (seen.has(id)) return;
+			seen.add(id);
+
+			const numMatch = id.match(/chapter[-/](\d+(?:[.-]\d+)?)/i);
+			const number = numMatch ? parseFloat(numMatch[1].replace('-', '.')) : 0;
+
+			// Title lives in span.font-medium (or the first span); "New" badge and
+			// the relative date are siblings and must not leak into the label.
+			let title = this.clean($el.find('span.font-medium, span[class*="font-medium"]').first().text());
+			if (!title) {
+				const clone = $el.clone();
+				clone.find('time, svg, img, button, [class*="dot-animation"]').remove();
+				title = this.clean(clone.text());
+			}
+			title = title
+				.replace(/\bNew\b/gi, '')
+				.replace(/\b\d+\s*(?:sec|min|hour|day|week|month|year)s?(?:\s+ago)?\b/gi, '')
+				.replace(/^(?:Chapter\s*)+/i, 'Chapter ')
+				.trim();
+			if (!title || /^chapter\s*$/i.test(title) || /^\d+(?:\.\d+)?$/.test(title)) {
+				title = number ? `Chapter ${number}` : 'Chapter';
+			}
+
+			const $time = $el.find('time').first();
+			const date = this.clean(
+				$time.text() || $time.attr('datetime') || $time.attr('dateTime') || $el.find('span[title]').attr('title') || ''
+			);
+
+			chapters.push({ id, title, number, date });
+		});
+
+		chapters.sort((a, b) => b.number - a.number);
+		return chapters;
+	}
+
 	async getMangaDetails(mangaId: string): Promise<MangaDetails> {
 		const path = mangaId.startsWith('http') ? new URL(mangaId).pathname : mangaId;
 		const html = await this.fetchHtml(path);
 		const $ = cheerio.load(html);
 
-		const title = $('h1').first().text().trim() || path;
-		const coverEl = $('img').filter((_, el) => {
-			const s = $(el).attr('src') || '';
-			return s.includes('cover') || s.includes('thumbnail');
-		}).first();
+		const title = this.clean($('h1').first().text()) || path;
+		const coverEl = $('img')
+			.filter((_, el) => {
+				const s = $(el).attr('src') || '';
+				return s.includes('cover') || s.includes('thumbnail');
+			})
+			.first();
 		const cover = this.abs(coverEl.attr('src') || $('img').first().attr('src') || '');
-		const description = $('.description, .synopsis, .summary').first().text().trim();
 
-		const genres: string[] = [];
-		$('.genres a, .genre a, .tags a').each((_, el) => {
-			const g = $(el).text().trim();
-			if (g) genres.push(g);
-		});
-
-		let status = 'Ongoing';
-		$('.status, .info-status').each((_, el) => {
-			const v = $(el).text().replace(/status/i, '').trim();
-			if (v) status = v;
-		});
-
-		const chapters: Chapter[] = [];
-		$('a[href*="/chapter"]').each((_, el) => {
-			const href = $(el).attr('href') || '';
-			const text = $(el).text().trim();
-			const numMatch = href.match(/chapter[/-](\d+(?:\.\d+)?)/i) || text.match(/(\d+(?:\.\d+)?)/);
-			const number = numMatch ? parseFloat(numMatch[1]) : 0;
-			if (href) {
-				const id = href.startsWith('http') ? new URL(href).pathname : href;
-				chapters.push({ id, title: text || `Chapter ${number}`, number, date: '' });
+		const meta = this.metaMap($);
+		const authors: string[] = [];
+		for (const k of ['author', 'artist']) {
+			if (meta[k]) {
+				for (const a of meta[k].split(/[,;]/)) {
+					const name = this.clean(a);
+					if (name && !authors.includes(name)) authors.push(name);
+				}
 			}
-		});
-		chapters.sort((a, b) => b.number - a.number);
+		}
 
-		return { id: path, sourceId: this.id, title, cover, description: description || '', authors: [], status, genres, chapters };
+		const slugMatch = path.match(/\/series\/([^/]+)/);
+		const slug = slugMatch ? slugMatch[1] : '';
+
+		return {
+			id: path,
+			sourceId: this.id,
+			title,
+			cover,
+			description: this.extractDescription($),
+			authors,
+			status: meta['status'] || 'Ongoing',
+			genres: this.extractGenres($),
+			chapters: this.extractChapters($, slug)
+		};
 	}
 
 	async getChapterPages(chapterId: string): Promise<string[]> {
@@ -97,6 +188,23 @@ export class VortexSource extends BaseSource {
 		const html = await this.fetchHtml(path);
 		const $ = cheerio.load(html);
 		const images: string[] = [];
+
+		// Primary: reader pages are tagged with data-reader-page-image / data-reader-index
+		const tagged = $('img[data-reader-page-image]').toArray();
+		if (tagged.length > 0) {
+			tagged
+				.map((el) => ({ el, idx: parseInt($(el).attr('data-reader-index') || '0', 10) || 0 }))
+				.sort((a, b) => a.idx - b.idx)
+				.forEach(({ el }) => {
+					const src = $(el).attr('src') || $(el).attr('data-src') || '';
+					if (src) {
+						const abs = this.abs(src);
+						if (!images.includes(abs)) images.push(abs);
+					}
+				});
+			return images;
+		}
+
 		$('img').each((_, el) => {
 			const src = $(el).attr('src') || $(el).attr('data-src') || '';
 			if (src && /\/page-\d+[^/]*\.(?:jpg|jpeg|png|webp)(?:\?|$)/i.test(src)) {
