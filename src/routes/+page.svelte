@@ -71,7 +71,7 @@
 	<meta name="description" content="Browse and read manga from multiple sources" />
 </svelte:head>
 
-<div class="max-w-7xl mx-auto px-4 py-6">
+<div class="max-w-7xl mx-auto px-4 py-6 pb-24 sm:pb-6">
 
 	<!-- Error Banner -->
 	{#if error}
@@ -116,31 +116,31 @@
 		</h1>
 
 		<!-- Filters -->
-		<div class="flex flex-wrap gap-3 mt-4">
+		<div class="flex flex-col sm:flex-row sm:flex-wrap gap-3 mt-4">
 			<select
 				value={currentSource}
 				onchange={handleSourceChange}
-				class="px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 cursor-pointer"
+				class="w-full sm:w-auto px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-base sm:text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 cursor-pointer"
 			>
 				{#each sources as source}
 					<option value={source.id}>{source.name}</option>
 				{/each}
 			</select>
 
-			<form class="flex gap-2 flex-1 max-w-md" onsubmit={handleSearch}>
+			<form class="flex gap-2 w-full sm:flex-1 sm:max-w-md" onsubmit={handleSearch}>
 				<div class="relative flex-1">
 					<Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
 					<input
 						type="text"
 						placeholder="Search manga..."
 						bind:value={searchInput}
-						class="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
+						class="w-full pl-9 pr-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-base sm:text-sm placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
 					/>
 				</div>
 				<button
 					type="submit"
 					disabled={loading}
-					class="px-4 py-2 bg-[var(--color-primary)] hover:opacity-90 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+					class="px-4 py-2.5 bg-[var(--color-primary)] hover:opacity-90 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
 				>
 					{#if loading}
 						<Loader2 class="w-4 h-4 animate-spin" />
@@ -174,7 +174,7 @@
 		</div>
 	{:else}
 		<!-- Manga Grid -->
-		<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+		<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
 			{#each mangas as manga}
 				<a
 					href="/manga/{manga.sourceId}{manga.id}"
@@ -242,7 +242,7 @@
 	href="https://github.com/MasFana/fana-cumik"
 	target="_blank"
 	rel="noreferrer"
-	class="group fixed bottom-6 right-6 z-50 flex items-center gap-0 sm:gap-2 p-1.5 sm:pr-4 rounded-full bg-zinc-900/90 backdrop-blur-xl border border-zinc-800 hover:border-[var(--color-primary)]/50 shadow-lg hover:shadow-[0_0_30px_-5px_var(--color-primary)] transition-all duration-500 hover:-translate-y-1 overflow-hidden"
+	class="group fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 flex items-center gap-0 sm:gap-2 p-1.5 sm:pr-4 rounded-full bg-zinc-900/90 backdrop-blur-xl border border-zinc-800 hover:border-[var(--color-primary)]/50 shadow-lg hover:shadow-[0_0_30px_-5px_var(--color-primary)] transition-all duration-500 hover:-translate-y-1 overflow-hidden"
 >
 	<!-- Continuous Shine Effect -->
 	<div class="absolute top-0 bottom-0 left-0 w-24 bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-[-25deg] z-10 pointer-events-none shine-effect"></div>

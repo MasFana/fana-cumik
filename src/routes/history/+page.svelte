@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { History, Trash2, BookOpen, Clock } from 'lucide-svelte';
+	import { History, Trash2, BookOpen, Clock, ChevronRight } from 'lucide-svelte';
 	import { getHistory, clearHistory, removeFromHistory, type ReadingEntry } from '$lib/stores/history';
 
 	let history = $state<ReadingEntry[]>([]);
@@ -38,7 +38,7 @@
 	<title>History | FanaCumik</title>
 </svelte:head>
 
-<div class="max-w-3xl mx-auto px-4 py-6">
+<div class="max-w-3xl mx-auto px-4 py-5 sm:py-6">
 	<div class="flex items-center justify-between mb-6">
 		<div>
 			<h1
@@ -52,7 +52,7 @@
 		{#if history.length > 0}
 			<button
 				onclick={handleClear}
-				class="flex items-center gap-2 px-3 py-1.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg transition-colors"
+				class="flex items-center gap-2 min-h-11 px-3 text-sm text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg transition-colors"
 			>
 				<Trash2 class="w-4 h-4" />
 				Clear All
@@ -70,11 +70,11 @@
 		<div class="space-y-2">
 			{#each history as entry}
 				<div
-					class="flex items-center gap-4 p-3 bg-zinc-900/50 border border-zinc-800/50 rounded-xl group"
+					class="flex items-center gap-3 sm:gap-4 p-2.5 sm:p-3 bg-zinc-900/50 border border-zinc-800/50 rounded-xl group"
 				>
 					<!-- Cover -->
 					<a href="/manga/{entry.sourceId}{entry.mangaId}" class="shrink-0">
-						<div class="w-14 h-20 bg-zinc-800 rounded-lg overflow-hidden">
+						<div class="w-12 h-[4.5rem] sm:w-14 sm:h-20 bg-zinc-800 rounded-lg overflow-hidden">
 							{#if entry.cover}
 								<img
 									src="/api/proxy?url={encodeURIComponent(entry.cover)}&source={entry.sourceId}"
@@ -110,16 +110,19 @@
 					</div>
 
 					<!-- Actions -->
-					<div class="flex items-center gap-2">
+					<div class="flex items-center gap-1 sm:gap-2 shrink-0">
 						<a
 							href="/read/{entry.sourceId}{entry.chapterId}"
-							class="px-3 py-1.5 bg-[var(--color-primary)] hover:opacity-90 rounded-lg text-sm font-medium transition-colors"
+							class="flex items-center justify-center min-h-11 min-w-11 px-3 bg-[var(--color-primary)] hover:opacity-90 rounded-lg text-sm font-medium transition-colors"
+							aria-label="Continue reading {entry.chapterTitle}"
 						>
-							Continue
+							<span class="hidden sm:inline">Continue</span>
+							<ChevronRight class="w-4 h-4 sm:hidden" />
 						</a>
 						<button
 							onclick={() => handleRemove(entry.mangaId)}
-							class="p-1.5 text-zinc-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+							class="flex items-center justify-center min-h-11 min-w-11 text-zinc-600 hover:text-red-400 transition-colors md:opacity-0 md:group-hover:opacity-100"
+							aria-label="Remove {entry.mangaTitle} from history"
 						>
 							<Trash2 class="w-4 h-4" />
 						</button>

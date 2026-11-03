@@ -12,7 +12,33 @@
 	
 	// Loading state for navigation
 	let isLoading = $derived($navigating !== null);
+
+	// Auto-hide navbar: hide on scroll down, reveal on scroll up
+	let hideNav = $state(false);
+	let lastY = 0;
+	let ticking = false;
+
+	function onScroll() {
+		if (ticking) return;
+		ticking = true;
+		requestAnimationFrame(() => {
+			const y = window.scrollY;
+			const dy = y - lastY;
+			if (y < 80 || dy < -8) hideNav = false;
+			else if (dy > 8) hideNav = true;
+			lastY = y;
+			ticking = false;
+		});
+	}
+	// A new route never opens with the bar hidden
+	$effect(() => {
+		$page.url.pathname;
+		hideNav = false;
+		lastY = typeof window !== 'undefined' ? window.scrollY : 0;
+	});
 </script>
+
+<svelte:window onscroll={onScroll} />
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
@@ -48,7 +74,9 @@
 	<!-- Navbar - Hidden on reader pages -->
 	{#if !isReaderPage}
 		<nav
-			class="sticky top-0 z-50 backdrop-blur-xl bg-zinc-950/80 border-b border-zinc-800/50"
+			class="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-zinc-950/80 border-b border-zinc-800/50 transition-transform duration-300 ease-out will-change-transform {hideNav
+				? '-translate-y-full'
+				: 'translate-y-0'}"
 		>
 			<div class="max-w-7xl mx-auto px-4 sm:px-6">
 				<div class="flex items-center justify-between h-14">
@@ -72,21 +100,21 @@
 					<div class="flex items-center gap-1">
 						<a
 							href="/"
-							class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all"
+							class="flex items-center justify-center gap-2 min-h-11 px-2.5 sm:px-3 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all"
 						>
 							<Home class="w-4 h-4" />
 							<span class="hidden sm:inline">Browse</span>
 						</a>
 						<a
 							href="/sources"
-							class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all"
+							class="flex items-center justify-center gap-2 min-h-11 px-2.5 sm:px-3 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all"
 						>
 							<Library class="w-4 h-4" />
 							<span class="hidden sm:inline">Sources</span>
 						</a>
 						<a
 							href="/history"
-							class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all"
+							class="flex items-center justify-center gap-2 min-h-11 px-2.5 sm:px-3 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all"
 						>
 							<History class="w-4 h-4" />
 							<span class="hidden sm:inline">History</span>
@@ -98,7 +126,7 @@
 	{/if}
 
 	<!-- Main Content -->
-	<main>
+	<main class={isReaderPage ? '' : 'pt-14'}>
 		{@render children()}
 	</main>
 

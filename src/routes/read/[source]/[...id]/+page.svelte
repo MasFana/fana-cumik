@@ -44,6 +44,25 @@
 		scheduleHideControls();
 	}
 
+	// Scroll direction: hide controls going down, reveal going up
+	let scrollTicking = false;
+	function handleScroll() {
+		if (scrollTicking) return;
+		scrollTicking = true;
+		requestAnimationFrame(() => {
+			const y = window.scrollY;
+			const dy = y - lastScrollY;
+			if (y < 80 || dy < -10) {
+				showControls = true;
+			} else if (dy > 10) {
+				showControls = false;
+				showChapterList = false;
+			}
+			lastScrollY = y;
+			scrollTicking = false;
+		});
+	}
+
 	// Touch handling for swipe navigation
 	function handleTouchStart(e: TouchEvent) {
 		const touch = e.touches[0];
@@ -229,6 +248,8 @@
 	<title>{currentChapter?.title || 'Chapter'}{currentChapter?.date ? ` · ${currentChapter.date}` : ''} - {mangaInfo?.title || 'Manga'} | FanaCumik</title>
 	<meta name="description" content="Read {mangaInfo?.title || 'manga'} {currentChapter?.title || ''} online for free" />
 </svelte:head>
+
+<svelte:window onscroll={handleScroll} />
 
 <!-- Error State -->
 {#if error || !pages || pages.length === 0}
@@ -541,6 +562,14 @@
 	/* Smooth header transitions */
 	header {
 		transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+	}
+
+	/* Phone: every control in the reader bar is a proper thumb target */
+	@media (max-width: 640px) {
+		header button {
+			min-width: 44px;
+			min-height: 44px;
+		}
 	}
 
 	/* Chapter dropdown animation */
