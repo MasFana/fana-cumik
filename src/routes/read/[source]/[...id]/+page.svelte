@@ -2,7 +2,7 @@
 	import type { PageData } from './$types';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { ArrowLeft, Maximize2, Minimize2, ChevronLeft, ChevronRight, ChevronDown, AlertCircle, RefreshCw, BookOpen } from 'lucide-svelte';
+	import { ArrowLeft, Maximize2, Minimize2, ChevronLeft, ChevronRight, ChevronDown, AlertCircle, RefreshCw, BookOpen, Home, Library } from 'lucide-svelte';
 	import { saveReading } from '$lib/stores/history';
 
 	const { data }: { data: PageData } = $props();
@@ -88,6 +88,8 @@
 
 	function handleTouchEnd(e: TouchEvent) {
 		if (isZoomed || readerMode !== 'vertical') return;
+		// Touches that land on the bar belong to its buttons, not to the tap-toggle
+		if ((e.target as HTMLElement)?.closest('header, a, button')) return;
 
 		const touch = e.changedTouches[0];
 		const deltaX = touch.clientX - touchStartX;
@@ -348,12 +350,12 @@
 		}}
 	>
 		<div
-			class="flex items-center gap-0.5 sm:gap-1 h-11 sm:h-14 px-1 sm:px-4 bg-zinc-950/90 backdrop-blur-md border-b border-white/5"
+			class="flex items-center gap-0.5 sm:gap-1 h-12 sm:h-14 px-1.5 sm:px-4 bg-gradient-to-b from-black/90 via-black/60 to-transparent backdrop-blur-[2px]"
 		>
 			<button
 				onclick={goBack}
-				aria-label="Back to manga"
-				class="flex items-center justify-center w-10 h-10 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-lg text-zinc-300 active:bg-white/10 sm:hover:bg-white/10 transition-colors shrink-0"
+				aria-label="Back to {mangaInfo?.title || 'manga'}"
+				class="flex items-center justify-center h-9 w-9 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-lg bg-white/10 text-zinc-200 active:bg-white/20 sm:hover:bg-white/20 transition-colors shrink-0"
 			>
 				<ArrowLeft class="w-5 h-5 sm:w-4 sm:h-4" />
 				<span class="hidden sm:inline text-sm ml-1.5">Back</span>
@@ -363,7 +365,7 @@
 				<button
 					onclick={() => goToChapter(prevChapter.id)}
 					aria-label="Previous chapter"
-					class="flex items-center justify-center w-10 h-10 rounded-lg text-zinc-300 active:bg-white/10 sm:hover:bg-white/10 transition-colors shrink-0"
+					class="flex items-center justify-center h-9 w-9 rounded-lg bg-white/10 text-zinc-200 active:bg-white/20 sm:hover:bg-white/20 transition-colors shrink-0"
 				>
 					<ChevronLeft class="w-5 h-5" />
 				</button>
@@ -374,7 +376,7 @@
 				<button
 					onclick={toggleChapterList}
 					aria-label="Select chapter"
-					class="flex items-center justify-center gap-1 w-full h-10 px-2 rounded-lg text-zinc-200 active:bg-white/10 sm:hover:bg-white/10 transition-colors"
+					class="flex items-center justify-center gap-1 w-full h-9 px-2 rounded-lg bg-white/10 text-zinc-100 active:bg-white/20 sm:hover:bg-white/20 transition-colors"
 				>
 					<span class="truncate text-[13px] sm:text-sm font-medium"
 						>{currentChapter?.title || 'Chapters'}</span
@@ -390,6 +392,26 @@
 					<div
 						class="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-[92vw] sm:w-80 max-h-[65vh] overflow-y-auto bg-zinc-900/95 backdrop-blur-md border border-zinc-700 rounded-xl shadow-xl z-50"
 					>
+						<div
+							class="sticky top-0 z-10 flex items-center gap-1 px-2 py-1.5 bg-zinc-950/95 backdrop-blur border-b border-white/10"
+						>
+							{#if mangaInfo?.slug}
+								<a
+									href="/manga/{source}/{mangaInfo.slug}"
+									class="flex items-center gap-1.5 flex-1 min-w-0 h-9 px-2 rounded-lg text-xs text-zinc-300 active:bg-white/10 sm:hover:bg-white/10 transition-colors"
+								>
+									<Library class="w-3.5 h-3.5 shrink-0" />
+									<span class="truncate">{mangaInfo.title}</span>
+								</a>
+							{/if}
+							<a
+								href="/"
+								aria-label="Home"
+								class="flex items-center justify-center w-9 h-9 shrink-0 rounded-lg bg-white/10 active:bg-white/20 sm:hover:bg-white/20 transition-colors"
+							>
+								<Home class="w-4 h-4" />
+							</a>
+						</div>
 						{#each chapters as chapter}
 							{#if chapter.title}
 								<button
@@ -416,18 +438,18 @@
 
 						<!-- Phones keep reader settings here so the bar stays one line -->
 						<div
-							class="sm:hidden sticky bottom-0 flex items-center justify-between gap-2 px-4 py-2.5 bg-zinc-900 border-t border-zinc-800"
+							class="sm:hidden sticky bottom-0 flex items-center justify-between gap-2 px-3 py-2 bg-zinc-950/95 backdrop-blur border-t border-white/10"
 						>
 							<button
 								onclick={toggleMode}
-								class="flex-1 py-2 bg-white/10 active:bg-white/20 rounded-lg text-xs font-medium"
+								class="flex-1 h-9 bg-white/10 active:bg-white/20 rounded-lg text-xs font-medium"
 							>
 								{readerMode === 'vertical' ? 'Scroll mode' : 'Paged mode'}
 							</button>
 							<button
 								onclick={toggleFullscreen}
 								aria-label="Toggle fullscreen"
-								class="flex items-center justify-center w-10 h-10 bg-white/10 active:bg-white/20 rounded-lg"
+								class="flex items-center justify-center w-9 h-9 bg-white/10 active:bg-white/20 rounded-lg"
 							>
 								{#if isFullscreen}
 									<Minimize2 class="w-4 h-4" />
@@ -444,7 +466,7 @@
 				<button
 					onclick={() => goToChapter(nextChapter.id)}
 					aria-label="Next chapter"
-					class="flex items-center justify-center w-10 h-10 rounded-lg text-zinc-300 active:bg-white/10 sm:hover:bg-white/10 transition-colors shrink-0"
+					class="flex items-center justify-center h-9 w-9 rounded-lg bg-white/10 text-zinc-200 active:bg-white/20 sm:hover:bg-white/20 transition-colors shrink-0"
 				>
 					<ChevronRight class="w-5 h-5" />
 				</button>
@@ -476,7 +498,7 @@
 
 	<!-- Vertical Mode -->
 	{#if readerMode === 'vertical'}
-		<div class="reader-pages flex flex-col items-center pt-11 sm:pt-14 pb-8">
+		<div class="reader-pages flex flex-col items-center pt-12 sm:pt-14 pb-8">
 			{#each pages as pageUrl, i}
 				<img
 					src={proxyImage(pageUrl)}
@@ -490,6 +512,21 @@
 			<!-- End of chapter navigation -->
 			<div class="flex flex-col items-center gap-4 py-8 px-4">
 				<p class="text-zinc-500 text-sm">End of chapter</p>
+				<div class="flex items-center gap-3 text-sm">
+					{#if mangaInfo?.slug}
+						<a
+							href="/manga/{source}/{mangaInfo.slug}"
+							class="flex items-center gap-1.5 text-zinc-300 hover:text-white transition-colors"
+						>
+							<Library class="w-4 h-4" />
+							Manga details
+						</a>
+					{/if}
+					<a href="/" class="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 transition-colors">
+						<Home class="w-4 h-4" />
+						Home
+					</a>
+				</div>
 				<div class="flex gap-3 w-full max-w-xs justify-center">
 					{#if prevChapter}
 						<button
@@ -525,7 +562,7 @@
 	{:else}
 		<!-- Horizontal Mode -->
 		<div
-			class="flex items-center justify-center min-h-screen pt-11 sm:pt-14 cursor-pointer"
+			class="flex items-center justify-center min-h-screen pt-12 sm:pt-14 cursor-pointer"
 			role="button"
 			tabindex="0"
 			onclick={nextPage}
