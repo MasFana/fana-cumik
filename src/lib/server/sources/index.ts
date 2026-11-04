@@ -11,6 +11,7 @@ import { KomikuSource } from './impl/Komiku';
 import { MangadexSource } from './impl/Mangadex';
 import { VortexSource } from './impl/Vortex';
 import { OmegaSource } from './impl/Omega';
+import { WeebcentralSource } from './impl/Weebcentral';
 import type { IMangaSource } from './types';
 
 // Registry of all available manga sources
@@ -20,6 +21,7 @@ const sources: Record<string, IMangaSource> = {
 	mangadex: new MangadexSource(),
 	vortex: new VortexSource(),
 	omega: new OmegaSource(),
+	weebcentral: new WeebcentralSource(),
 };
 
 /**
