@@ -23,6 +23,22 @@ export class KomikuSource extends BaseSource {
 		return link.startsWith('/') ? link : `/${link}`;
 	}
 
+	/** Komiku's listing serves a 450x235 landscape banner; the card grid is 2:3
+	 *  portrait and stretches it, so ask the resize proxy for a portrait crop. */
+	private coverUrl(raw: string): string {
+		if (!raw) return '';
+		const abs = raw.startsWith('http') ? raw : `https:${raw}`;
+		try {
+			const u = new URL(abs);
+			if (u.hostname.includes('komiku') && !/\.(gif|svg)$/i.test(u.pathname)) {
+				u.searchParams.set('resize', '450,675');
+			}
+			return u.toString();
+		} catch {
+			return abs;
+		}
+	}
+
 	async getLatestManga(page: number): Promise<Manga[]> {
 		const res: Manga[] = [];
 		try {
@@ -51,7 +67,7 @@ export class KomikuSource extends BaseSource {
 					res.push({
 						id: cleanLink,
 						title,
-						cover: image.startsWith('http') ? image : (image ? `https:${image}` : ''),
+						cover: this.coverUrl(image),
 						sourceId: this.id
 					});
 				}
@@ -80,7 +96,7 @@ export class KomikuSource extends BaseSource {
 						res.push({
 							id: cleanLink,
 							title,
-							cover: image.startsWith('http') ? image : `https:${image}`,
+							cover: this.coverUrl(image),
 							sourceId: this.id
 						});
 					}
@@ -118,7 +134,7 @@ export class KomikuSource extends BaseSource {
 					res.push({
 						id: cleanLink,
 						title,
-						cover: image.startsWith('http') ? image : (image ? `https:${image}` : ''),
+						cover: this.coverUrl(image),
 						sourceId: this.id
 					});
 				}
