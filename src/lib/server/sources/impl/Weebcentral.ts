@@ -153,7 +153,17 @@ export class WeebcentralSource extends BaseSource {
 	}
 
 	async getMangaDetails(mangaId: string): Promise<MangaDetails> {
-		const path = this.toPath(mangaId);
+		let path = this.toPath(mangaId);
+		// A chapter path (/chapters/<ULID>) is not a series page. The chapter page
+		// contains back-links to its series; resolve the first /series/<id>/<slug>.
+		if (/^\/chapters\/[^/]+$/.test(path)) {
+			const $ch = cheerio.load(await this.fetchHtml(path));
+			const seriesPath = $ch('a[href*="/series/"]')
+				.toArray()
+				.map((el) => this.toPath($ch(el).attr('href') || ''))
+				.find((p) => /^\/series\/[^/]+\/[^/]+$/.test(p));
+			if (seriesPath) path = seriesPath;
+		}
 		const html = await this.fetchHtml(path);
 		const $ = cheerio.load(html);
 

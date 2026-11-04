@@ -18,8 +18,11 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
     // The [...id] catch-all gives us the full path as an array, reconstruct with slashes
     const chapterId = `/${Array.isArray(id) ? id.join('/') : id}`;
     
-    // Remove the chapter part from the ID to get the manga ID
-    const mangaId = chapterId.replace(/\/(chapter|ch|episode|ep)[-/_]?.+$/i, '');
+    // Remove the chapter part from the ID to get the manga ID.
+    // The alternation also matches inside "chapters", which can wipe the whole
+    // path (e.g. WeebCentral's /chapters/<ULID>); fall back to the chapter path.
+    const stripped = chapterId.replace(/\/(chapter|ch|episode|ep)[-/_]?.+$/i, '');
+    const mangaId = stripped || chapterId;
     // For History
     const mangaSlug = mangaId.startsWith('/') ? mangaId.slice(1): mangaId;
 
@@ -45,7 +48,7 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
                     id: mangaDetails.id,
                     title: mangaDetails.title,
                     cover: mangaDetails.cover,
-                    slug: mangaSlug
+                    slug: mangaDetails.id.replace(/^\//, '')
                 } : {
                     id: mangaId,
                     title: mangaSlug.replace(/-/g, ' '),
@@ -119,7 +122,7 @@ const prevChapter = currentChapterIndex < parsedChapters.length - 1 ? parsedChap
                 id: mangaDetails.id,
                 title: mangaDetails.title,
                 cover: mangaDetails.cover,
-                slug: mangaSlug
+                slug: mangaDetails.id.replace(/^\//, '')
             } : {
                 id: mangaId,
                 title: mangaSlug.replace(/-/g, ' '),

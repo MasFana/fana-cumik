@@ -94,8 +94,24 @@ export class VortexSource extends BaseSource {
 		return this.clean(panel);
 	}
 
-	private extractChapters($: cheerio.CheerioAPI, slug: string): Chapter[] {
+	private extractChapters($: cheerio.CheerioAPI, slug: string, html: string): Chapter[] {
+		// Payload-first: the SSR anchor list below is partial (the hero button and
+		// some rows are dropped), but the dehydrated SvelteKit payload in the same
+		// HTML lists every chapter. Only the relative dates live in the anchors.
+		const payloadRe = /\{id:\d+,slug:"(chapter-[\d.]+)",number:([\d.]+),title:"([^"]*)"/g;
+		const payload = slug
+			? Array.from(html.matchAll(payloadRe)).map((m) => {
+					const number = parseFloat(m[2]);
+					return {
+						id: `/series/${slug}/${m[1]}`,
+						number,
+						title: this.clean(m[3]) || `Chapter ${number}`
+					};
+				})
+			: [];
+
 		const chapters: Chapter[] = [];
+		const datesByNumber = new Map<number, string>();
 		const seen = new Set<string>();
 		const scope = slug ? `a[href*="/series/${slug}/chapter"]` : 'a[href*="/chapter"]';
 
@@ -136,7 +152,15 @@ export class VortexSource extends BaseSource {
 			);
 
 			chapters.push({ id, title, number, date });
+			if (date) datesByNumber.set(number, date);
 		});
+
+		if (payload.length > 0) {
+			return payload
+				.map((c) => ({ ...c, date: datesByNumber.get(c.number) || '' }))
+				.filter((c, i, a) => a.findIndex((x) => x.id === c.id) === i)
+				.sort((a, b) => b.number - a.number);
+		}
 
 		chapters.sort((a, b) => b.number - a.number);
 		return chapters;
@@ -148,13 +172,20 @@ export class VortexSource extends BaseSource {
 		const $ = cheerio.load(html);
 
 		const title = this.clean($('h1').first().text()) || path;
-		const coverEl = $('img')
-			.filter((_, el) => {
-				const s = $(el).attr('src') || '';
-				return s.includes('cover') || s.includes('thumbnail');
-			})
-			.first();
-		const cover = this.abs(coverEl.attr('src') || $('img').first().attr('src') || '');
+		// Cover: the real cover carries itemprop="image". Older markup matched on
+		// 'cover'/'thumbnail' in the URL. Never fall back to $('img').first() —
+		// that is the site logo.
+		const coverSrc =
+			$('img[itemprop="image"]').first().attr('src') ||
+			$('img')
+				.filter((_, el) => {
+					const s = $(el).attr('src') || '';
+					return s.includes('cover') || s.includes('thumbnail');
+				})
+				.first()
+				.attr('src') ||
+			'';
+		const cover = this.abs(coverSrc);
 
 		const meta = this.metaMap($);
 		const authors: string[] = [];
@@ -179,7 +210,7 @@ export class VortexSource extends BaseSource {
 			authors,
 			status: meta['status'] || 'Ongoing',
 			genres: this.extractGenres($),
-			chapters: this.extractChapters($, slug)
+			chapters: this.extractChapters($, slug, html)
 		};
 	}
 
@@ -188,6 +219,12 @@ export class VortexSource extends BaseSource {
 		const html = await this.fetchHtml(path);
 		const $ = cheerio.load(html);
 		const images: string[] = [];
+
+		// Payload-first: reader pages ship no <img>; page images live only in the
+		// dehydrated payload as `displaySrc:"..."`, already ordered page-0001..N.
+		// Locked/paid chapters legitimately have none — [] is correct there.
+		const payload = Array.from(html.matchAll(/displaySrc:"(https:[^"]+)"/g)).map((m) => m[1]);
+		if (payload.length > 0) return [...new Set(payload)];
 
 		// Primary: reader pages are tagged with data-reader-page-image / data-reader-index
 		const tagged = $('img[data-reader-page-image]').toArray();
