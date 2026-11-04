@@ -14,6 +14,26 @@ import type { RequestHandler } from './$types';
 const USER_AGENT =
 	'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+// Hosts this proxy may fetch from. Exists so the endpoint cannot be used as an
+// open relay for arbitrary web content. Derived from live source adapters.
+const ALLOWED_HOSTS = [
+	'asurascans.com', // asura covers
+	'komiku.org', // komiku thumbnails + chapter pages
+	'komiku.to', // komiku thumbnails
+	'mangadex.org', // mangadex uploads
+	'mangadex.network', // mangadex at-home nodes
+	'vortexscans.org', // vortex chapter pages
+	'wp.com', // vortex covers via i0/i1/i2.wp.com
+	'omegascans.org', // omega covers + chapter pages
+	'compsci88.com', // weebcentral covers
+	'lastation.us' // weebcentral chapter pages
+];
+
+/** Host is allowed if it equals an entry or is a subdomain of one. */
+function isHostAllowed(host: string): boolean {
+	return ALLOWED_HOSTS.some((h) => host === h || host.endsWith('.' + h));
+}
+
 export const GET: RequestHandler = async ({ url }) => {
 	const targetUrl = url.searchParams.get('url');
 	const sourceId = url.searchParams.get('source');
@@ -26,8 +46,19 @@ export const GET: RequestHandler = async ({ url }) => {
 		// Decode the URL if it's encoded
 		const decodedUrl = decodeURIComponent(targetUrl);
 
+		// Reject unparseable URLs and hosts outside the allowlist before fetching
+		let parsedUrl: URL;
+		try {
+			parsedUrl = new URL(decodedUrl);
+		} catch {
+			return new Response('Invalid URL', { status: 400 });
+		}
+		if (!isHostAllowed(parsedUrl.hostname)) {
+			return new Response('Host not allowed', { status: 403 });
+		}
+
 		// Determine referer and user-agent based on source or target URL
-		let referer = new URL(decodedUrl).origin;
+		let referer = parsedUrl.origin;
 		let userAgent = USER_AGENT;
 
 		const isMangadex =
@@ -90,8 +121,12 @@ export const GET: RequestHandler = async ({ url }) => {
 			});
 		}
 
-		// Get content type, default to JPEG if not provided
+		// Get content type, default to JPEG if not provided, but reject
+		// anything the origin explicitly labels as non-image.
 		const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
+		if (!contentType.startsWith('image/')) {
+			return new Response('Not an image', { status: 415 });
+		}
 
 		// Return the image with aggressive caching (1 year, immutable)
 		return new Response(imageResponse.body, {
