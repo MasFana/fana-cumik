@@ -71,6 +71,13 @@ export class WeebcentralSource extends BaseSource {
 	private cards($: cheerio.CheerioAPI): Manga[] {
 		const res: Manga[] = [];
 		const seen = new Set<string>();
+		// data-tip on WeebCentral cards is often a type badge ("Manga", "Anime
+		// Adaptation", ...) rather than the title, so never let it win.
+		const badges = new Set(['manga', 'anime adaptation', 'official translation', 'manhwa', 'manhua']);
+		const tip = (s: string): string => {
+			const v = this.clean(s);
+			return v && !badges.has(v.toLowerCase()) ? v : '';
+		};
 		$('a[href*="/series/"]').each((_, el) => {
 			const $a = $(el);
 			const id = this.toPath($a.attr('href') || '');
@@ -85,9 +92,9 @@ export class WeebcentralSource extends BaseSource {
 			if (!src) return;
 
 			const title =
-				this.clean($('span.tooltip', $a).first().attr('data-tip') || '') ||
-				this.clean($a.closest('[data-tip]').attr('data-tip') || '') ||
 				this.clean(img.attr('alt') || '').replace(/\s*cover$/i, '') ||
+				tip($a.closest('[data-tip]').attr('data-tip') || '') ||
+				tip($('span.tooltip', $a).first().attr('data-tip') || '') ||
 				this.clean($a.text()) ||
 				decodeURIComponent(id.split('/').pop() || '').replace(/-/g, ' ');
 
