@@ -124,7 +124,31 @@ export class AsuraSource extends BaseSource {
 		const $ = cheerio.load(html);
 
 		const title = this.clean($('h1').first().text()) || normalizedId;
-		const cover = $('img[alt*="cover"], .series-cover img, img[src*="covers/"]').first().attr('src') || '';
+		// Try: specific cover class/attr, meta og:image, or JSON-LD image
+		let cover =
+			$('img[src*="/covers/"], img[alt*="cover"], .series-cover img').first().attr('src') ||
+			$('meta[property="og:image"]').attr('content') ||
+			'';
+
+		if (!cover) {
+			$('script[type="application/ld+json"]').each((_, el) => {
+				try {
+					const raw = JSON.parse($(el).html() || '{}');
+					const nodes = Array.isArray(raw) ? raw : [raw, ...(raw['@graph'] || [])];
+					for (const node of nodes) {
+						if (node?.image) {
+							const img = typeof node.image === 'string' ? node.image : node.image?.url;
+							if (img && typeof img === 'string') {
+								cover = img;
+								return false;
+							}
+						}
+					}
+				} catch {
+					/* ignore */
+				}
+			});
+		}
 
 		// Chapter links are: /comics/{slug}/chapter/{num}. The page repeats the list
 		// across tab panels, so dedupe by chapter id.

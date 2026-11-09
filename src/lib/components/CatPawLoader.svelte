@@ -38,8 +38,8 @@
 				<svg viewBox="0 0 100 100" class="w-full h-full filter drop-shadow-[0_2px_10px_rgba(249,115,22,0.4)]">
 					<defs>
 						<linearGradient id="pawStrokeGradL" x1="0%" y1="0%" x2="100%" y2="100%">
-							<stop offset="0%" stop-color="var(--color-primary, #f97316)" />
-							<stop offset="100%" stop-color="var(--color-accent, #db2777)" />
+							<stop offset="0%" stop-color="#f97316" />
+							<stop offset="100%" stop-color="#fb923c" />
 						</linearGradient>
 					</defs>
 					<g class="paw-draw-group draw-paw-l">
@@ -85,11 +85,11 @@
 
 			<!-- Right Paw Outline -->
 			<div class="{sizeMap[size]} paw-step-right">
-				<svg viewBox="0 0 100 100" class="w-full h-full filter drop-shadow-[0_2px_10px_rgba(219,39,119,0.4)]">
+				<svg viewBox="0 0 100 100" class="w-full h-full filter drop-shadow-[0_2px_10px_rgba(249,115,22,0.4)]">
 					<defs>
 						<linearGradient id="pawStrokeGradR" x1="0%" y1="0%" x2="100%" y2="100%">
-							<stop offset="0%" stop-color="var(--color-accent, #db2777)" />
-							<stop offset="100%" stop-color="var(--color-primary, #f97316)" />
+							<stop offset="0%" stop-color="#fb923c" />
+							<stop offset="100%" stop-color="#f97316" />
 						</linearGradient>
 					</defs>
 					<g class="paw-draw-group draw-paw-r">
@@ -133,8 +133,8 @@
 			<svg viewBox="0 0 100 100" class="w-full h-full filter drop-shadow-[0_2px_12px_rgba(249,115,22,0.45)]">
 				<defs>
 					<linearGradient id="nekoPawGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-						<stop offset="0%" stop-color="var(--color-primary, #f97316)" />
-						<stop offset="100%" stop-color="var(--color-accent, #db2777)" />
+						<stop offset="0%" stop-color="#f97316" />
+						<stop offset="100%" stop-color="#fb923c" />
 					</linearGradient>
 				</defs>
 
@@ -271,7 +271,7 @@
 		}
 		35%, 75% {
 			stroke-dashoffset: 0;
-			fill: rgba(219, 39, 119, 0.2);
+			fill: rgba(249, 115, 22, 0.25);
 			opacity: 1;
 		}
 		90%, 100% {
@@ -289,7 +289,7 @@
 		}
 		40%, 75% {
 			stroke-dashoffset: 0;
-			fill: rgba(249, 115, 22, 0.2);
+			fill: rgba(249, 115, 22, 0.3);
 			opacity: 1;
 		}
 		90%, 100% {
