@@ -7,34 +7,36 @@
 		pageIndex,
 		totalPages,
 		proxyUrl,
-		initialActive = false,
+		shouldLoad = false,
+		isNear = false,
+		isCurrent = false,
 		onVisible,
+		onLoaded,
+		onError,
+		onRequestImmediate,
 		ondblclick
 	}: {
 		pageIndex: number;
 		totalPages: number;
 		proxyUrl: string;
-		initialActive?: boolean;
+		shouldLoad?: boolean;
+		isNear?: boolean;
+		isCurrent?: boolean;
 		onVisible?: (index: number) => void;
+		onLoaded?: (index: number) => void;
+		onError?: (index: number) => void;
+		onRequestImmediate?: (index: number) => void;
 		ondblclick?: (e: MouseEvent | TouchEvent) => void;
 	} = $props();
 
 	let containerEl: HTMLDivElement | null = $state(null);
-	let inPreloadRange = $state(false);
 	let isVisible = $state(false);
 	let loaded = $state(false);
 	let error = $state(false);
 	let retryCount = $state(0);
 
-	$effect(() => {
-		if (initialActive) {
-			inPreloadRange = true;
-			isVisible = true;
-		}
-	});
-
 	let currentSrc = $derived.by(() => {
-		if (!inPreloadRange) return '';
+		if (!shouldLoad) return '';
 		if (retryCount > 0) {
 			const separator = proxyUrl.includes('?') ? '&' : '?';
 			return `${proxyUrl}${separator}_retry=${retryCount}`;
@@ -45,22 +47,22 @@
 	onMount(() => {
 		if (!containerEl) return;
 
-		// 1. Preload Observer: starts loading image before it enters viewport
+		// 1. Fast Preload Observer: triggers immediate high priority if user scrolls near before background spread
 		const preloadObserver = new IntersectionObserver(
 			(entries) => {
 				for (const entry of entries) {
 					if (entry.isIntersecting) {
-						inPreloadRange = true;
+						onRequestImmediate?.(pageIndex);
 						preloadObserver.disconnect();
 					}
 				}
 			},
-			{ rootMargin: '1400px 0px 1400px 0px' }
+			{ rootMargin: '1200px 0px 1200px 0px' }
 		);
 
 		preloadObserver.observe(containerEl);
 
-		// 2. Viewport Observer: detects when page is visible to user
+		// 2. Viewport Observer: tracks active page cursor for reading progress
 		const viewObserver = new IntersectionObserver(
 			(entries) => {
 				for (const entry of entries) {
@@ -84,8 +86,20 @@
 	function handleRetry() {
 		error = false;
 		loaded = false;
-		inPreloadRange = true;
 		retryCount++;
+		onRequestImmediate?.(pageIndex);
+	}
+
+	function handleImageLoad() {
+		loaded = true;
+		error = false;
+		onLoaded?.(pageIndex);
+	}
+
+	function handleImageError() {
+		error = true;
+		loaded = true;
+		onError?.(pageIndex);
 	}
 </script>
 
@@ -95,10 +109,16 @@
 	data-page={pageIndex}
 	class="reader-page-container relative flex flex-col items-center justify-center w-full min-h-[500px] sm:min-h-[650px] bg-zinc-950/40"
 >
-	<!-- Loading state with Cat Paw Animation -->
+	<!-- Loading state with Cat Paw Outline animation -->
 	{#if !loaded && !error}
 		<div class="absolute inset-0 flex flex-col items-center justify-center p-6 z-10 pointer-events-none">
-			<CatPawLoader size="lg" text="Halaman {pageIndex + 1} / {totalPages}" />
+			{#if shouldLoad}
+				<CatPawLoader size="lg" text="Halaman {pageIndex + 1} / {totalPages}" />
+			{:else}
+				<div class="flex flex-col items-center justify-center gap-2 text-zinc-600 text-xs sm:text-sm">
+					<span>Halaman {pageIndex + 1} / {totalPages}</span>
+				</div>
+			{/if}
 		</div>
 	{/if}
 
@@ -122,14 +142,11 @@
 		<img
 			src={currentSrc}
 			alt="Page {pageIndex + 1}"
-			loading={pageIndex < 2 ? 'eager' : 'lazy'}
-			fetchpriority={isVisible || pageIndex === 0 ? 'high' : 'auto'}
+			loading={isNear || isCurrent ? 'eager' : 'lazy'}
+			fetchpriority={isCurrent ? 'high' : isNear ? 'high' : 'low'}
 			decoding="async"
-			onload={() => (loaded = true)}
-			onerror={() => {
-				error = true;
-				loaded = true;
-			}}
+			onload={handleImageLoad}
+			onerror={handleImageError}
 			class="reader-image transition-opacity duration-300 {loaded ? 'opacity-100' : 'opacity-0'}"
 			{ondblclick}
 		/>

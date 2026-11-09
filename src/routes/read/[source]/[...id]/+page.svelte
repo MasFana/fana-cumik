@@ -40,6 +40,101 @@
 	let resumedPageNotification = $state<number | null>(null);
 	let hideResumeTimeout: ReturnType<typeof setTimeout> | null = null;
 
+	// Spreading Render Queue State
+	let allowedToLoad = $state<boolean[]>([]);
+	let loadedStates = $state<boolean[]>([]);
+	let errorStates = $state<boolean[]>([]);
+	const MAX_CONCURRENT_LOADS = 4;
+	const NEAR_FORWARD_RADIUS = 2; // immediate next 2 pages
+	const NEAR_BACKWARD_RADIUS = 1; // immediate previous 1 page
+
+	function getSpreadingScore(idx: number, cursor: number): number {
+		const diff = idx - cursor;
+		if (diff === 0) return 0;
+		if (diff > 0) {
+			return diff;
+		} else {
+			return Math.abs(diff) * 1.5 + 2;
+		}
+	}
+
+	function updateSpreadingQueue() {
+		if (!pages || pages.length === 0) return;
+		const total = pages.length;
+
+		if (allowedToLoad.length !== total) {
+			allowedToLoad = new Array(total).fill(false);
+			loadedStates = new Array(total).fill(false);
+			errorStates = new Array(total).fill(false);
+		}
+
+		// Always grant load permission to immediate near pages around currentPage
+		const nearStart = Math.max(0, currentPage - NEAR_BACKWARD_RADIUS);
+		const nearEnd = Math.min(total - 1, currentPage + NEAR_FORWARD_RADIUS);
+		let hasChanges = false;
+
+		for (let i = nearStart; i <= nearEnd; i++) {
+			if (!allowedToLoad[i]) {
+				allowedToLoad[i] = true;
+				hasChanges = true;
+			}
+		}
+
+		// Count in-flight image requests (allowed but not loaded and not error)
+		let inFlight = 0;
+		for (let i = 0; i < total; i++) {
+			if (allowedToLoad[i] && !loadedStates[i] && !errorStates[i]) {
+				inFlight++;
+			}
+		}
+
+		// If near pages are loaded or slots open, spread rendering cursor outward
+		const availableSlots = MAX_CONCURRENT_LOADS - inFlight;
+		if (availableSlots > 0) {
+			const candidates: number[] = [];
+			for (let i = 0; i < total; i++) {
+				if (!allowedToLoad[i]) {
+					candidates.push(i);
+				}
+			}
+
+			candidates.sort((a, b) => getSpreadingScore(a, currentPage) - getSpreadingScore(b, currentPage));
+
+			const countToAllow = Math.min(availableSlots, candidates.length);
+			for (let k = 0; k < countToAllow; k++) {
+				allowedToLoad[candidates[k]] = true;
+				hasChanges = true;
+			}
+		}
+
+		if (hasChanges) {
+			allowedToLoad = [...allowedToLoad];
+		}
+	}
+
+	function requestImmediateLoad(idx: number) {
+		if (idx >= 0 && idx < allowedToLoad.length && !allowedToLoad[idx]) {
+			allowedToLoad[idx] = true;
+			allowedToLoad = [...allowedToLoad];
+			updateSpreadingQueue();
+		}
+	}
+
+	function handlePageLoaded(idx: number) {
+		if (idx >= 0 && idx < loadedStates.length) {
+			loadedStates[idx] = true;
+			errorStates[idx] = false;
+			updateSpreadingQueue();
+		}
+	}
+
+	function handlePageError(idx: number) {
+		if (idx >= 0 && idx < errorStates.length) {
+			errorStates[idx] = true;
+			updateSpreadingQueue();
+		}
+	}
+
 	// Mobile touch handling
 	let touchStartX = $state(0);
 	let touchStartY = $state(0);
@@ -180,6 +275,7 @@
 			currentPage++;
 			horizontalLoaded = false;
 			saveCurrentProgress(currentPage);
+			updateSpreadingQueue();
 		} else if (nextChapter) {
 			goToChapter(nextChapter.id);
 		}
@@ -190,6 +286,7 @@
 			currentPage--;
 			horizontalLoaded = false;
 			saveCurrentProgress(currentPage);
+			updateSpreadingQueue();
 		} else if (prevChapter) {
 			goToChapter(prevChapter.id);
 		}
@@ -226,8 +323,11 @@
 	}
 
 	function handlePageVisible(idx: number) {
-		currentPage = idx;
-		saveCurrentProgress(idx);
+		if (currentPage !== idx) {
+			currentPage = idx;
+			saveCurrentProgress(idx);
+			updateSpreadingQueue();
+		}
 	}
 
 	// Restore scroll position on chapter mount/change
@@ -239,6 +339,7 @@
 			currentPage = saved.pageIndex;
 			initialActivePage = saved.pageIndex;
 			resumedPageNotification = saved.pageIndex + 1;
+			updateSpreadingQueue();
 
 			if (hideResumeTimeout) clearTimeout(hideResumeTimeout);
 			hideResumeTimeout = setTimeout(() => {
@@ -259,14 +360,19 @@
 			// Brand new chapter -> reset to top
 			currentPage = 0;
 			initialActivePage = 0;
+			updateSpreadingQueue();
 			window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
 		}
 	}
 
-	// Trigger restore when chapter or source changes
+	// Trigger restore and reset spreading queue when chapter or source changes
 	$effect(() => {
+		const len = pages ? pages.length : 0;
 		chapterId;
 		source;
+		allowedToLoad = new Array(len).fill(false);
+		loadedStates = new Array(len).fill(false);
+		errorStates = new Array(len).fill(false);
 		restoreChapterPosition();
 	});
 
@@ -597,7 +703,7 @@
 				</div>
 			</header>
 
-			<!-- Vertical Scroll Mode with Partial Rendering & Priority Viewport Loading -->
+			<!-- Vertical Scroll Mode with Spreading Priority Viewport Loading -->
 			{#if readerMode === 'vertical'}
 				<div class="reader-pages flex flex-col items-center pt-12 sm:pt-14 pb-8 w-full">
 					{#each pages as pageUrl, i (chapterId + '-' + i)}
@@ -605,8 +711,13 @@
 							pageIndex={i}
 							totalPages={pages.length}
 							proxyUrl={proxyImage(pageUrl)}
-							initialActive={Math.abs(i - initialActivePage) <= 1}
+							shouldLoad={allowedToLoad[i] ?? false}
+							isNear={Math.abs(i - currentPage) <= 2}
+							isCurrent={i === currentPage}
 							onVisible={handlePageVisible}
+							onLoaded={handlePageLoaded}
+							onError={handlePageError}
+							onRequestImmediate={requestImmediateLoad}
 							ondblclick={toggleZoom}
 						/>
 					{/each}
@@ -693,13 +804,35 @@
 							<img
 								src={proxyImage(pages[currentPage])}
 								alt="Page {currentPage + 1}"
+								fetchpriority="high"
+								decoding="async"
 								class="reader-image-horizontal max-h-[95vh] object-contain transition-opacity duration-300 {horizontalLoaded ? 'opacity-100' : 'opacity-0'}"
 								style={isZoomed ? `transform: scale(${zoomLevel}); cursor: grab;` : ''}
-								onload={() => (horizontalLoaded = true)}
+								onload={() => {
+									horizontalLoaded = true;
+									handlePageLoaded(currentPage);
+								}}
+								onerror={() => handlePageError(currentPage)}
 								ondblclick={toggleZoom}
 								ontouchend={handleTouchEnd}
 							/>
 						{/key}
+					</div>
+
+					<!-- Hidden spreading preloader for horizontal mode -->
+					<div class="hidden" aria-hidden="true">
+						{#each pages as pageUrl, i}
+							{#if allowedToLoad[i] && i !== currentPage && !loadedStates[i]}
+								<img
+									src={proxyImage(pageUrl)}
+									alt=""
+									loading="lazy"
+									decoding="async"
+									onload={() => handlePageLoaded(i)}
+									onerror={() => handlePageError(i)}
+								/>
+							{/if}
+						{/each}
 					</div>
 
 					<!-- Next Button -->
