@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { History, Trash2, BookOpen, Clock, ChevronRight } from 'lucide-svelte';
 	import { getHistory, clearHistory, removeFromHistory, type ReadingEntry } from '$lib/stores/history';
+	import MangaCover from '$lib/components/MangaCover.svelte';
 
 	let history = $state<ReadingEntry[]>([]);
 
@@ -74,19 +75,11 @@
 				>
 					<!-- Cover -->
 					<a href="/manga/{entry.sourceId}{entry.mangaId}" class="shrink-0">
-						<div class="w-12 h-[4.5rem] sm:w-14 sm:h-20 bg-zinc-800 rounded-lg overflow-hidden">
-							{#if entry.cover}
-								<img
-									src="/api/proxy?url={encodeURIComponent(entry.cover)}&source={entry.sourceId}"
-									alt=""
-									class="w-full h-full object-cover"
-								/>
-							{:else}
-								<div class="w-full h-full flex items-center justify-center">
-									<BookOpen class="w-5 h-5 text-zinc-700" />
-								</div>
-							{/if}
-						</div>
+						<MangaCover
+							src="/api/proxy?url={encodeURIComponent(entry.cover)}&source={entry.sourceId}"
+							alt={entry.mangaTitle}
+							containerClass="w-12 h-[4.5rem] sm:w-14 sm:h-20"
+						/>
 					</a>
 
 					<!-- Info -->

@@ -5,6 +5,8 @@
 	import { onMount } from 'svelte';
 	import { Search, ChevronLeft, ChevronRight, Loader2, Github, Star, AlertCircle, RefreshCw } from 'lucide-svelte';
 	import { getImpl, setImpl } from '$lib/stores/impl';
+	import CatPawLoader from '$lib/components/CatPawLoader.svelte';
+	import MangaCover from '$lib/components/MangaCover.svelte';
 	const { data }: { data: PageData } = $props();
 	let { mangas, sources, currentSource, currentPage, searchQuery, error } = $derived(data);
 
@@ -163,7 +165,7 @@
 	<!-- Loading -->
 	{#if loading}
 		<div class="flex justify-center py-20">
-			<Loader2 class="w-8 h-8 animate-spin text-[var(--color-primary)]" />
+			<CatPawLoader size="xl" text="Mencari manga..." variant="walking" />
 		</div>
 	{:else if mangas.length === 0}
 		<div class="text-center py-20 text-zinc-500">
@@ -175,31 +177,15 @@
 	{:else}
 		<!-- Manga Grid -->
 		<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-			{#each mangas as manga}
+			{#each mangas as manga (`${manga.sourceId}:${manga.id}`)}
 				<a
 					href="/manga/{manga.sourceId}{manga.id}"
 					class="group block"
 				>
-					<div
-						class="aspect-[2/3] rounded-lg overflow-hidden bg-zinc-900 relative"
-					>
-						{#if manga.cover}
-							<img
-								src={proxyImage(manga.cover)}
-								alt={manga.title}
-								loading="lazy"
-								class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-							/>
-						{:else}
-							<div class="w-full h-full flex items-center justify-center text-3xl text-zinc-700">
-								📚
-							</div>
-						{/if}
-						<!-- Hover overlay -->
-						<div
-							class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent opacity-0 group-hover:opacity-100 transition-opacity"
-						></div>
-					</div>
+					<MangaCover
+						src={proxyImage(manga.cover)}
+						alt={manga.title}
+					/>
 					<h3
 						class="mt-2 text-sm font-medium line-clamp-2 text-zinc-300 group-hover:text-white transition-colors"
 					>

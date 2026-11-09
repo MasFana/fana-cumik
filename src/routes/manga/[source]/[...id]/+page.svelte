@@ -2,6 +2,7 @@
 	import type { PageData } from './$types';
 	import { BookOpen, User, Clock, Tag, ChevronRight, ArrowRight } from 'lucide-svelte';
 	import { getLastRead } from '$lib/stores/history';
+	import MangaCover from '$lib/components/MangaCover.svelte';
 
 	const { data }: { data: PageData } = $props();
 	let { manga, source } = $derived(data);
@@ -24,19 +25,11 @@
 	<!-- Header: cover beside the facts on phones, wider block on desktop -->
 	<div class="flex gap-4 sm:gap-6 mb-5 sm:mb-8">
 		<div class="shrink-0">
-			<div class="w-28 sm:w-40 md:w-48 aspect-[2/3] rounded-xl overflow-hidden bg-zinc-900">
-				{#if manga.cover}
-					<img
-						src={proxyImage(manga.cover)}
-						alt="{manga.title} Cover"
-						class="w-full h-full object-cover"
-					/>
-				{:else}
-					<div class="w-full h-full flex items-center justify-center">
-						<BookOpen class="w-10 h-10 text-zinc-700" />
-					</div>
-				{/if}
-			</div>
+			<MangaCover
+				src={proxyImage(manga.cover)}
+				alt="{manga.title} Cover"
+				containerClass="w-28 sm:w-40 md:w-48 rounded-xl shadow-lg"
+			/>
 		</div>
 
 		<div class="flex-1 min-w-0">

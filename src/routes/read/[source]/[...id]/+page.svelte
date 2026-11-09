@@ -1,14 +1,34 @@
 <script lang="ts">
 	import type { PageData } from './$types';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { ArrowLeft, Maximize2, Minimize2, ChevronLeft, ChevronRight, ChevronDown, AlertCircle, RefreshCw, BookOpen, Home, Library } from 'lucide-svelte';
-	import { saveReading } from '$lib/stores/history';
+	import {
+		ArrowLeft,
+		Maximize2,
+		Minimize2,
+		ChevronLeft,
+		ChevronRight,
+		ChevronDown,
+		AlertCircle,
+		RefreshCw,
+		BookOpen,
+		Home,
+		Library
+	} from 'lucide-svelte';
+	import {
+		saveReading,
+		saveChapterProgress,
+		getChapterProgress
+	} from '$lib/stores/history';
+	import CatPawLoader from '$lib/components/CatPawLoader.svelte';
+	import ReaderPage from '$lib/components/ReaderPage.svelte';
 
 	const { data }: { data: PageData } = $props();
-	let { pages, source, chapterId, mangaInfo, chapters, currentChapter, prevChapter, nextChapter, error } = $derived(data);
+	let { pages, source, chapterId, mangaInfo, chapters, currentChapter, prevChapter, nextChapter, error } =
+		$derived(data);
 
 	let currentPage = $state(0);
+	let initialActivePage = $state(0);
 	let readerMode = $state<'vertical' | 'horizontal'>('vertical');
 	let showControls = $state(true);
 	let showChapterList = $state(false);
@@ -16,6 +36,9 @@
 	let isFullscreen = $state(false);
 	let isZoomed = $state(false);
 	let zoomLevel = $state(1);
+	let horizontalLoaded = $state(false);
+	let resumedPageNotification = $state<number | null>(null);
+	let hideResumeTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	// Mobile touch handling
 	let touchStartX = $state(0);
@@ -140,6 +163,7 @@
 	}
 
 	function goToChapter(chapterUrl: string) {
+		window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
 		goto(`/read/${source}${chapterUrl}`);
 	}
 
@@ -154,6 +178,8 @@
 	function nextPage() {
 		if (currentPage < pages.length - 1) {
 			currentPage++;
+			horizontalLoaded = false;
+			saveCurrentProgress(currentPage);
 		} else if (nextChapter) {
 			goToChapter(nextChapter.id);
 		}
@@ -162,26 +188,100 @@
 	function prevPage() {
 		if (currentPage > 0) {
 			currentPage--;
+			horizontalLoaded = false;
+			saveCurrentProgress(currentPage);
 		} else if (prevChapter) {
 			goToChapter(prevChapter.id);
 		}
 	}
 
-	// Save reading progress
+	// Track and save reading progress debounced
+	let progressDebounce: ReturnType<typeof setTimeout> | null = null;
+	function saveCurrentProgress(pageIdx: number) {
+		if (progressDebounce) clearTimeout(progressDebounce);
+		progressDebounce = setTimeout(() => {
+			if (!chapterId || !source) return;
+
+			saveChapterProgress(source, chapterId, {
+				pageIndex: pageIdx,
+				scrollY: window.scrollY,
+				totalPages: pages.length
+			});
+
+			if (pages.length > 0 && mangaInfo) {
+				saveReading({
+					sourceId: source,
+					mangaId: mangaInfo.id,
+					mangaSlug: mangaInfo.slug || '',
+					mangaTitle: mangaInfo.title,
+					cover: mangaInfo.cover,
+					chapterId,
+					chapterTitle: currentChapter?.title || '',
+					chapterNumber: currentChapter?.number || 0,
+					pageIndex: pageIdx,
+					totalPages: pages.length
+				});
+			}
+		}, 300);
+	}
+
+	function handlePageVisible(idx: number) {
+		currentPage = idx;
+		saveCurrentProgress(idx);
+	}
+
+	// Restore scroll position on chapter mount/change
+	async function restoreChapterPosition() {
+		if (!source || !chapterId || pages.length === 0) return;
+
+		const saved = getChapterProgress(source, chapterId);
+		if (saved && saved.pageIndex > 0 && saved.pageIndex < pages.length) {
+			currentPage = saved.pageIndex;
+			initialActivePage = saved.pageIndex;
+			resumedPageNotification = saved.pageIndex + 1;
+
+			if (hideResumeTimeout) clearTimeout(hideResumeTimeout);
+			hideResumeTimeout = setTimeout(() => {
+				resumedPageNotification = null;
+			}, 4000);
+
+			await tick();
+			// Scroll into view after page containers mount
+			setTimeout(() => {
+				const el = document.getElementById(`reader-page-${saved.pageIndex}`);
+				if (el) {
+					el.scrollIntoView({ behavior: 'instant', block: 'start' });
+				} else if (saved.scrollY > 0) {
+					window.scrollTo({ top: saved.scrollY, behavior: 'instant' });
+				}
+			}, 60);
+		} else {
+			// Brand new chapter -> reset to top
+			currentPage = 0;
+			initialActivePage = 0;
+			window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+		}
+	}
+
+	// Trigger restore when chapter or source changes
 	$effect(() => {
-		if (pages.length > 0 && mangaInfo) {
-			saveReading({
-				sourceId: source,
-				mangaId: mangaInfo.id,
-				mangaSlug: mangaInfo.slug || '',
-				mangaTitle: mangaInfo.title,
-				cover: mangaInfo.cover,
-				chapterId,
-				chapterTitle: currentChapter?.title || '',
-				chapterNumber: currentChapter?.number || 0
+		chapterId;
+		source;
+		restoreChapterPosition();
+	});
+
+	function scrollToTop() {
+		window.scrollTo({ top: 0, behavior: 'smooth' });
+		resumedPageNotification = null;
+		currentPage = 0;
+		if (source && chapterId) {
+			saveChapterProgress(source, chapterId, {
+				pageIndex: 0,
+				scrollY: 0,
+				totalPages: pages.length
 			});
 		}
-	});
+	}
 
 	// Keyboard navigation
 	$effect(() => {
@@ -233,7 +333,7 @@
 
 	function toggleMode() {
 		readerMode = readerMode === 'vertical' ? 'horizontal' : 'vertical';
-		currentPage = 0;
+		horizontalLoaded = false;
 	}
 
 	function toggleFullscreen() {
@@ -328,301 +428,320 @@
 		</div>
 	</div>
 {:else}
-<!-- Reader Container -->
-<div
-	class="reader-container min-h-screen bg-black"
-	ontouchstart={handleTouchStart}
-	ontouchend={handleTouchEnd}
-	onpointermove={handlePointerMove}
-	role="application"
-	aria-label="Manga Reader"
->
-	<!-- Reading Progress Bar -->
-	<div class="reader-progress" style="transform: scaleX({(currentPage + 1) / pages.length})"></div>
-
-	<!-- Top Controls: one thin row on phones, full bar from sm up -->
-	<header
-		class="fixed top-0 left-0 right-0 z-50 transition-transform duration-300 ease-out will-change-transform {showControls
-			? 'translate-y-0'
-			: '-translate-y-full'}"
-		onpointerenter={(e) => {
-			if (e.pointerType === 'mouse') showControls = true;
-		}}
-	>
+	<!-- Keyed by source and chapterId so all previous chapter DOM is completely destroyed on switch -->
+	{#key `${source}:${chapterId}`}
 		<div
-			class="flex items-center gap-0.5 sm:gap-1 h-12 sm:h-14 px-1.5 sm:px-4 bg-gradient-to-b from-black/90 via-black/60 to-transparent backdrop-blur-[2px]"
+			class="reader-container min-h-screen bg-black"
+			ontouchstart={handleTouchStart}
+			ontouchend={handleTouchEnd}
+			onpointermove={handlePointerMove}
+			role="application"
+			aria-label="Manga Reader"
 		>
-			<button
-				onclick={goBack}
-				aria-label="Back to {mangaInfo?.title || 'manga'}"
-				class="flex items-center justify-center h-9 w-9 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-lg bg-white/10 text-zinc-200 active:bg-white/20 sm:hover:bg-white/20 transition-colors shrink-0"
+			<!-- Reading Progress Bar -->
+			<div class="reader-progress" style="transform: scaleX({(currentPage + 1) / pages.length})"></div>
+
+			<!-- Top Controls: one thin row on phones, full bar from sm up -->
+			<header
+				class="fixed top-0 left-0 right-0 z-50 transition-transform duration-300 ease-out will-change-transform {showControls
+					? 'translate-y-0'
+					: '-translate-y-full'}"
+				onpointerenter={(e) => {
+					if (e.pointerType === 'mouse') showControls = true;
+				}}
 			>
-				<ArrowLeft class="w-5 h-5 sm:w-4 sm:h-4" />
-				<span class="hidden sm:inline text-sm ml-1.5">Back</span>
-			</button>
-
-			{#if prevChapter}
-				<button
-					onclick={() => goToChapter(prevChapter.id)}
-					aria-label="Previous chapter"
-					class="flex items-center justify-center h-9 w-9 rounded-lg bg-white/10 text-zinc-200 active:bg-white/20 sm:hover:bg-white/20 transition-colors shrink-0"
+				<div
+					class="flex items-center gap-0.5 sm:gap-1 h-12 sm:h-14 px-1.5 sm:px-4 bg-gradient-to-b from-black/90 via-black/60 to-transparent backdrop-blur-[2px]"
 				>
-					<ChevronLeft class="w-5 h-5" />
-				</button>
-			{/if}
-
-			<!-- Chapter title doubles as the chapter picker -->
-			<div class="relative flex-1 min-w-0">
-				<button
-					onclick={toggleChapterList}
-					aria-label="Select chapter"
-					class="flex items-center justify-center gap-1 w-full h-9 px-2 rounded-lg bg-white/10 text-zinc-100 active:bg-white/20 sm:hover:bg-white/20 transition-colors"
-				>
-					<span class="truncate text-[13px] sm:text-sm font-medium"
-						>{currentChapter?.title || 'Chapters'}</span
+					<button
+						onclick={goBack}
+						aria-label="Back to {mangaInfo?.title || 'manga'}"
+						class="flex items-center justify-center h-9 w-9 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-lg bg-white/10 text-zinc-200 active:bg-white/20 sm:hover:bg-white/20 transition-colors shrink-0"
 					>
-					<ChevronDown
-						class="w-3.5 h-3.5 shrink-0 opacity-60 transition-transform {showChapterList
-							? 'rotate-180'
-							: ''}"
-					/>
-				</button>
+						<ArrowLeft class="w-5 h-5 sm:w-4 sm:h-4" />
+						<span class="hidden sm:inline text-sm ml-1.5">Back</span>
+					</button>
 
-				{#if showChapterList}
-					<div
-						class="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-[92vw] sm:w-80 max-h-[65vh] overflow-y-auto bg-zinc-900/95 backdrop-blur-md border border-zinc-700 rounded-xl shadow-xl z-50"
-					>
-						<div
-							class="sticky top-0 z-10 flex items-center gap-1 px-2 py-1.5 bg-zinc-950/95 backdrop-blur border-b border-white/10"
+					{#if prevChapter}
+						<button
+							onclick={() => goToChapter(prevChapter.id)}
+							aria-label="Previous chapter"
+							class="flex items-center justify-center h-9 w-9 rounded-lg bg-white/10 text-zinc-200 active:bg-white/20 sm:hover:bg-white/20 transition-colors shrink-0"
 						>
+							<ChevronLeft class="w-5 h-5" />
+						</button>
+					{/if}
+
+					<!-- Chapter title doubles as the chapter picker -->
+					<div class="relative flex-1 min-w-0">
+						<button
+							onclick={toggleChapterList}
+							aria-label="Select chapter"
+							class="flex items-center justify-center gap-1 w-full h-9 px-2 rounded-lg bg-white/10 text-zinc-100 active:bg-white/20 sm:hover:bg-white/20 transition-colors"
+						>
+							<span class="truncate text-[13px] sm:text-sm font-medium"
+								>{currentChapter?.title || 'Chapters'}</span
+							>
+							<ChevronDown
+								class="w-3.5 h-3.5 shrink-0 opacity-60 transition-transform {showChapterList
+									? 'rotate-180'
+									: ''}"
+							/>
+						</button>
+
+						{#if showChapterList}
+							<div
+								class="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-[92vw] sm:w-80 max-h-[65vh] overflow-y-auto bg-zinc-900/95 backdrop-blur-md border border-zinc-700 rounded-xl shadow-xl z-50"
+							>
+								<div
+									class="sticky top-0 z-10 flex items-center gap-1 px-2 py-1.5 bg-zinc-950/95 backdrop-blur border-b border-white/10"
+								>
+									{#if mangaInfo?.slug}
+										<a
+											href="/manga/{source}/{mangaInfo.slug}"
+											class="flex items-center gap-1.5 flex-1 min-w-0 h-9 px-2 rounded-lg text-xs text-zinc-300 active:bg-white/10 sm:hover:bg-white/10 transition-colors"
+										>
+											<Library class="w-3.5 h-3.5 shrink-0" />
+											<span class="truncate">{mangaInfo.title}</span>
+										</a>
+									{/if}
+									<a
+										href="/"
+										aria-label="Home"
+										class="flex items-center justify-center w-9 h-9 shrink-0 rounded-lg bg-white/10 active:bg-white/20 sm:hover:bg-white/20 transition-colors"
+									>
+										<Home class="w-4 h-4" />
+									</a>
+								</div>
+								{#each chapters as chapter}
+									{#if chapter.title}
+										<button
+											onclick={() => goToChapter(chapter.id)}
+											class="w-full px-4 py-3 text-left text-sm transition-colors {chapter.id ===
+											chapterId
+												? 'bg-[var(--color-primary)]/20 text-[var(--color-primary)]'
+												: 'text-zinc-300 hover:bg-white/5'}"
+										>
+											<div class="flex flex-col items-start truncate w-full">
+												<span class="truncate font-medium">{chapter.title}</span>
+												{#if chapter.date}
+													<span class="truncate text-[10px] text-zinc-500"
+														>{chapter.date}</span
+													>
+												{/if}
+											</div>
+										</button>
+									{/if}
+								{/each}
+								{#if chapters.length === 0}
+									<p class="px-4 py-3 text-sm text-zinc-500">No chapters available</p>
+								{/if}
+
+								<!-- Phones keep reader settings here so the bar stays one line -->
+								<div
+									class="sm:hidden sticky bottom-0 flex items-center justify-between gap-2 px-3 py-2 bg-zinc-950/95 backdrop-blur border-t border-white/10"
+								>
+									<button
+										onclick={toggleMode}
+										class="flex-1 h-9 bg-white/10 active:bg-white/20 rounded-lg text-xs font-medium"
+									>
+										{readerMode === 'vertical' ? 'Scroll mode' : 'Paged mode'}
+									</button>
+									<button
+										onclick={toggleFullscreen}
+										aria-label="Toggle fullscreen"
+										class="flex items-center justify-center w-9 h-9 bg-white/10 active:bg-white/20 rounded-lg"
+									>
+										{#if isFullscreen}
+											<Minimize2 class="w-4 h-4" />
+										{:else}
+											<Maximize2 class="w-4 h-4" />
+										{/if}
+									</button>
+								</div>
+							</div>
+						{/if}
+					</div>
+
+					{#if nextChapter}
+						<button
+							onclick={() => goToChapter(nextChapter.id)}
+							aria-label="Next chapter"
+							class="flex items-center justify-center h-9 w-9 rounded-lg bg-white/10 text-zinc-200 active:bg-white/20 sm:hover:bg-white/20 transition-colors shrink-0"
+						>
+							<ChevronRight class="w-5 h-5" />
+						</button>
+					{/if}
+
+					<!-- Desktop-only extras -->
+					<div class="hidden sm:flex items-center gap-2 shrink-0">
+						<span class="text-xs text-zinc-500 tabular-nums">{currentPage + 1}/{pages.length}</span>
+						<button
+							onclick={toggleMode}
+							class="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors"
+						>
+							{readerMode === 'vertical' ? 'Scroll' : 'Paged'}
+						</button>
+						<button
+							onclick={toggleFullscreen}
+							class="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+							title="Toggle Fullscreen"
+						>
+							{#if isFullscreen}
+								<Minimize2 class="w-4 h-4" />
+							{:else}
+								<Maximize2 class="w-4 h-4" />
+							{/if}
+						</button>
+					</div>
+				</div>
+			</header>
+
+			<!-- Vertical Scroll Mode with Partial Rendering & Priority Viewport Loading -->
+			{#if readerMode === 'vertical'}
+				<div class="reader-pages flex flex-col items-center pt-12 sm:pt-14 pb-8 w-full">
+					{#each pages as pageUrl, i (chapterId + '-' + i)}
+						<ReaderPage
+							pageIndex={i}
+							totalPages={pages.length}
+							proxyUrl={proxyImage(pageUrl)}
+							initialActive={Math.abs(i - initialActivePage) <= 1}
+							onVisible={handlePageVisible}
+							ondblclick={toggleZoom}
+						/>
+					{/each}
+
+					<!-- End of chapter navigation -->
+					<div class="flex flex-col items-center gap-4 py-8 px-4 w-full">
+						<p class="text-zinc-500 text-sm">End of chapter</p>
+						<div class="flex items-center gap-3 text-sm">
 							{#if mangaInfo?.slug}
 								<a
 									href="/manga/{source}/{mangaInfo.slug}"
-									class="flex items-center gap-1.5 flex-1 min-w-0 h-9 px-2 rounded-lg text-xs text-zinc-300 active:bg-white/10 sm:hover:bg-white/10 transition-colors"
+									class="flex items-center gap-1.5 text-zinc-300 hover:text-white transition-colors"
 								>
-									<Library class="w-3.5 h-3.5 shrink-0" />
-									<span class="truncate">{mangaInfo.title}</span>
+									<Library class="w-4 h-4" />
+									Manga details
 								</a>
 							{/if}
-							<a
-								href="/"
-								aria-label="Home"
-								class="flex items-center justify-center w-9 h-9 shrink-0 rounded-lg bg-white/10 active:bg-white/20 sm:hover:bg-white/20 transition-colors"
-							>
+							<a href="/" class="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 transition-colors">
 								<Home class="w-4 h-4" />
+								Home
 							</a>
 						</div>
-						{#each chapters as chapter}
-							{#if chapter.title}
+						<div class="flex gap-3 w-full max-w-xs justify-center">
+							{#if prevChapter}
 								<button
-									onclick={() => goToChapter(chapter.id)}
-									class="w-full px-4 py-3 text-left text-sm transition-colors {chapter.id ===
-									chapterId
-										? 'bg-[var(--color-primary)]/20 text-[var(--color-primary)]'
-										: 'text-zinc-300 hover:bg-white/5'}"
+									onclick={() => goToChapter(prevChapter.id)}
+									class="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm transition-colors flex-1 justify-center"
 								>
-									<div class="flex flex-col items-start truncate w-full">
-										<span class="truncate font-medium">{chapter.title}</span>
-										{#if chapter.date}
-											<span class="truncate text-[10px] text-zinc-500"
-												>{chapter.date}</span
-											>
+									<ChevronLeft class="w-4 h-4" />
+									<div class="text-left hidden sm:block">
+										<div class="truncate font-medium">{prevChapter.title}</div>
+										{#if prevChapter.date}
+											<div class="truncate text-[10px] text-zinc-500">{prevChapter.date}</div>
 										{/if}
 									</div>
 								</button>
 							{/if}
-						{/each}
-						{#if chapters.length === 0}
-							<p class="px-4 py-3 text-sm text-zinc-500">No chapters available</p>
-						{/if}
-
-						<!-- Phones keep reader settings here so the bar stays one line -->
-						<div
-							class="sm:hidden sticky bottom-0 flex items-center justify-between gap-2 px-3 py-2 bg-zinc-950/95 backdrop-blur border-t border-white/10"
-						>
-							<button
-								onclick={toggleMode}
-								class="flex-1 h-9 bg-white/10 active:bg-white/20 rounded-lg text-xs font-medium"
-							>
-								{readerMode === 'vertical' ? 'Scroll mode' : 'Paged mode'}
-							</button>
-							<button
-								onclick={toggleFullscreen}
-								aria-label="Toggle fullscreen"
-								class="flex items-center justify-center w-9 h-9 bg-white/10 active:bg-white/20 rounded-lg"
-							>
-								{#if isFullscreen}
-									<Minimize2 class="w-4 h-4" />
-								{:else}
-									<Maximize2 class="w-4 h-4" />
-								{/if}
-							</button>
+							{#if nextChapter}
+								<button
+									onclick={() => goToChapter(nextChapter.id)}
+									class="flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] hover:opacity-90 rounded-lg text-sm font-medium transition-colors flex-1 justify-center"
+								>
+									<div class="text-right hidden sm:block">
+										<div class="truncate font-medium">{nextChapter.title}</div>
+										{#if nextChapter.date}
+											<div class="truncate text-[10px] text-zinc-500">{nextChapter.date}</div>
+										{/if}
+									</div>
+									<ChevronRight class="w-4 h-4" />
+								</button>
+							{/if}
 						</div>
 					</div>
-				{/if}
-			</div>
-
-			{#if nextChapter}
-				<button
-					onclick={() => goToChapter(nextChapter.id)}
-					aria-label="Next chapter"
-					class="flex items-center justify-center h-9 w-9 rounded-lg bg-white/10 text-zinc-200 active:bg-white/20 sm:hover:bg-white/20 transition-colors shrink-0"
+				</div>
+			{:else}
+				<!-- Horizontal Mode with Cat Paw Loading Fallback -->
+				<div
+					class="flex items-center justify-center min-h-screen pt-12 sm:pt-14 cursor-pointer relative"
+					role="button"
+					tabindex="0"
+					onclick={nextPage}
+					onkeypress={() => {}}
 				>
-					<ChevronRight class="w-5 h-5" />
-				</button>
+					<!-- Prev Button -->
+					<button
+						class="fixed left-0 top-1/2 -translate-y-1/2 w-16 h-24 flex items-center justify-center bg-black/50 hover:bg-[var(--color-primary)]/50 transition-colors disabled:opacity-20 z-30"
+						onclick={(e) => {
+							e.stopPropagation();
+							prevPage();
+						}}
+						disabled={currentPage === 0}
+					>
+						<ChevronLeft class="w-8 h-8" />
+					</button>
+
+					<div class="relative flex items-center justify-center max-h-[95vh] max-w-[95vw] min-h-[350px] min-w-[250px]">
+						{#if !horizontalLoaded}
+							<div class="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+								<CatPawLoader size="lg" text="Halaman {currentPage + 1} / {pages.length}" />
+							</div>
+						{/if}
+
+						{#key `${chapterId}-${currentPage}`}
+							<img
+								src={proxyImage(pages[currentPage])}
+								alt="Page {currentPage + 1}"
+								class="reader-image-horizontal max-h-[95vh] object-contain transition-opacity duration-300 {horizontalLoaded ? 'opacity-100' : 'opacity-0'}"
+								style={isZoomed ? `transform: scale(${zoomLevel}); cursor: grab;` : ''}
+								onload={() => (horizontalLoaded = true)}
+								ondblclick={toggleZoom}
+								ontouchend={handleTouchEnd}
+							/>
+						{/key}
+					</div>
+
+					<!-- Next Button -->
+					<button
+						class="fixed right-0 top-1/2 -translate-y-1/2 w-16 h-24 flex items-center justify-center bg-black/50 hover:bg-[var(--color-primary)]/50 transition-colors disabled:opacity-20 z-30"
+						onclick={(e) => {
+							e.stopPropagation();
+							nextPage();
+						}}
+						disabled={currentPage === pages.length - 1}
+					>
+						<ChevronRight class="w-8 h-8" />
+					</button>
+				</div>
 			{/if}
 
-			<!-- Desktop-only extras -->
-			<div class="hidden sm:flex items-center gap-2 shrink-0">
-				<span class="text-xs text-zinc-500 tabular-nums">{currentPage + 1}/{pages.length}</span>
-				<button
-					onclick={toggleMode}
-					class="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors"
+			<!-- Scroll Resume Notification Toast -->
+			{#if resumedPageNotification !== null}
+				<div
+					class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2.5 bg-zinc-900/95 backdrop-blur-md border border-[var(--color-primary)]/40 rounded-full shadow-2xl text-xs sm:text-sm animate-fade-in"
 				>
-					{readerMode === 'vertical' ? 'Scroll' : 'Paged'}
-				</button>
-				<button
-					onclick={toggleFullscreen}
-					class="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
-					title="Toggle Fullscreen"
-				>
-					{#if isFullscreen}
-						<Minimize2 class="w-4 h-4" />
-					{:else}
-						<Maximize2 class="w-4 h-4" />
-					{/if}
-				</button>
-			</div>
-		</div>
-	</header>
-
-	<!-- Vertical Mode -->
-	{#if readerMode === 'vertical'}
-		<div class="reader-pages flex flex-col items-center pt-12 sm:pt-14 pb-8">
-			{#each pages as pageUrl, i}
-				<img
-					src={proxyImage(pageUrl)}
-					alt="Page {i + 1}"
-					loading={i < 3 ? 'eager' : 'lazy'}
-					class="reader-image"
-					ondblclick={toggleZoom}
-				/>
-			{/each}
-
-			<!-- End of chapter navigation -->
-			<div class="flex flex-col items-center gap-4 py-8 px-4">
-				<p class="text-zinc-500 text-sm">End of chapter</p>
-				<div class="flex items-center gap-3 text-sm">
-					{#if mangaInfo?.slug}
-						<a
-							href="/manga/{source}/{mangaInfo.slug}"
-							class="flex items-center gap-1.5 text-zinc-300 hover:text-white transition-colors"
-						>
-							<Library class="w-4 h-4" />
-							Manga details
-						</a>
-					{/if}
-					<a href="/" class="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 transition-colors">
-						<Home class="w-4 h-4" />
-						Home
-					</a>
+					<span class="text-zinc-200">Melanjutkan di <strong>Hal. {resumedPageNotification}</strong></span>
+					<button
+						onclick={scrollToTop}
+						class="px-2.5 py-1 bg-[var(--color-primary)] hover:opacity-90 rounded-full text-white font-medium text-xs transition-colors shadow-md"
+					>
+						Ke Awal
+					</button>
+					<button
+						onclick={() => (resumedPageNotification = null)}
+						class="text-zinc-400 hover:text-white text-xs px-1"
+						aria-label="Tutup notifikasi"
+					>
+						✕
+					</button>
 				</div>
-				<div class="flex gap-3 w-full max-w-xs justify-center">
-					{#if prevChapter}
-						<button
-							onclick={() => goToChapter(prevChapter.id)}
-							class="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm transition-colors flex-1 justify-center"
-						>
-							<ChevronLeft class="w-4 h-4" />
-							<div class="text-left hidden sm:block">
-								<div class="truncate font-medium">{prevChapter.title}</div>
-								{#if prevChapter.date}
-									<div class="truncate text-[10px] text-zinc-500">{prevChapter.date}</div>
-								{/if}
-							</div>
-						</button>
-					{/if}
-					{#if nextChapter}
-						<button
-							onclick={() => goToChapter(nextChapter.id)}
-							class="flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] hover:opacity-90 rounded-lg text-sm font-medium transition-colors flex-1 justify-center"
-						>
-							<div class="text-right hidden sm:block">
-								<div class="truncate font-medium">{nextChapter.title}</div>
-								{#if nextChapter.date}
-									<div class="truncate text-[10px] text-zinc-500">{nextChapter.date}</div>
-								{/if}
-							</div>
-							<ChevronRight class="w-4 h-4" />
-						</button>
-					{/if}
-				</div>
-			</div>
+			{/if}
 		</div>
-	{:else}
-		<!-- Horizontal Mode -->
-		<div
-			class="flex items-center justify-center min-h-screen pt-12 sm:pt-14 cursor-pointer"
-			role="button"
-			tabindex="0"
-			onclick={nextPage}
-			onkeypress={() => {}}
-		>
-			<!-- Prev Button -->
-			<button
-				class="fixed left-0 top-1/2 -translate-y-1/2 w-16 h-24 flex items-center justify-center bg-black/50 hover:bg-[var(--color-primary)]/50 transition-colors disabled:opacity-20"
-				onclick={(e) => {
-					e.stopPropagation();
-					prevPage();
-				}}
-				disabled={currentPage === 0}
-			>
-				<ChevronLeft class="w-8 h-8" />
-			</button>
-
-			<img
-				src={proxyImage(pages[currentPage])}
-				alt="Page {currentPage + 1}"
-				class="reader-image-horizontal max-h-[95vh] object-contain"
-				ondblclick={toggleZoom}
-				ontouchend={handleTouchEnd}
-			/>
-
-			<!-- Next Button -->
-			<button
-				class="fixed right-0 top-1/2 -translate-y-1/2 w-16 h-24 flex items-center justify-center bg-black/50 hover:bg-[var(--color-primary)]/50 transition-colors disabled:opacity-20"
-				onclick={(e) => {
-					e.stopPropagation();
-					nextPage();
-				}}
-				disabled={currentPage === pages.length - 1}
-			>
-				<ChevronRight class="w-8 h-8" />
-			</button>
-		</div>
-	{/if}
-</div>
+	{/key}
 {/if}
 
 <style>
-	/* Mobile: fill viewport width */
-	.reader-image {
-		width: 100vw;
-		max-width: 100vw;
-		height: auto;
-		display: block;
-		transition: transform 0.2s ease-out;
-		transform-origin: center center;
-	}
-
-	/* Desktop: constrained for readability */
-	@media (min-width: 769px) {
-		.reader-image {
-			width: 100%;
-			max-width: 800px;
-		}
-	}
-
 	/* Horizontal mode image */
 	.reader-image-horizontal {
 		max-width: 90vw;
@@ -680,19 +799,18 @@
 		position: fixed;
 		bottom: 0;
 		left: 0;
-		height: 2px;
-		background: var(--color-primary);
+		height: 2.5px;
+		background: linear-gradient(to right, var(--color-primary), var(--color-accent));
 		z-index: 100;
 		transform-origin: left;
+		transition: transform 0.15s ease-out;
 	}
 
 	/* Zoom cursor */
-	.reader-image[style*="scale(2)"],
 	.reader-image-horizontal[style*="scale(2)"] {
 		cursor: grab;
 	}
 
-	.reader-image[style*="scale(2)"]:active,
 	.reader-image-horizontal[style*="scale(2)"]:active {
 		cursor: grabbing;
 	}
@@ -718,7 +836,7 @@
 		to { opacity: 1; transform: translateY(0); }
 	}
 
-	.min-h-screen > div:first-child {
-		animation: fadeIn 0.4s ease-out;
+	.animate-fade-in {
+		animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 	}
 </style>

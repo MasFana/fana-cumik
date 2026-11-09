@@ -4,6 +4,7 @@
 	import { BookOpen, Home, Library, History, Loader2 } from 'lucide-svelte';
 	import { getHistory } from '$lib/stores/history';
 	import { page, navigating } from '$app/stores';
+	import CatPawLoader from '$lib/components/CatPawLoader.svelte';
 
 	let { children } = $props();
 
@@ -57,17 +58,7 @@
 			class="fixed inset-0 bg-zinc-950/80 backdrop-blur-sm z-[100] flex items-center justify-center"
 			style="animation: fadeIn 0.2s ease-out;"
 		>
-			<div class="flex flex-col items-center gap-4">
-				<div class="relative">
-					<!-- Outer ring -->
-					<div class="w-12 h-12 border-4 border-zinc-800 rounded-full"></div>
-					<!-- Spinning ring -->
-					<div class="absolute inset-0 w-12 h-12 border-4 border-transparent border-t-[var(--color-primary)] rounded-full animate-spin"></div>
-					<!-- Inner glow -->
-					<div class="absolute inset-2 bg-[var(--color-primary)]/20 rounded-full blur-sm"></div>
-				</div>
-				<p class="text-sm text-zinc-400 font-medium">Loading...</p>
-			</div>
+			<CatPawLoader size="xl" text="Meow-loading..." variant="walking" />
 		</div>
 	{/if}
 

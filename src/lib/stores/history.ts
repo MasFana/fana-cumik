@@ -16,10 +16,20 @@ export interface ReadingEntry {
 	chapterNumber: number;
 	sourceId: string;
 	timestamp: number;
+	pageIndex?: number;
+	totalPages?: number;
+}
+
+export interface ChapterProgress {
+	pageIndex: number;
+	scrollY: number;
+	totalPages?: number;
+	timestamp: number;
 }
 
 const STORAGE_KEY = 'fana-cumik_history';
 const MAX_HISTORY = 50;
+const PROGRESS_KEY_PREFIX = 'fana-cumik_prog_';
 
 /**
  * Get all reading history entries
@@ -89,4 +99,48 @@ export function removeFromHistory(mangaId: string): void {
 	const history = getHistory();
 	const filtered = history.filter((h) => h.mangaId !== mangaId);
 	localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+}
+
+/**
+ * Save chapter specific progress (page index and scroll position)
+ */
+export function saveChapterProgress(sourceId: string, chapterId: string, progress: Omit<ChapterProgress, 'timestamp'>): void {
+	if (!browser) return;
+	try {
+		const key = `${PROGRESS_KEY_PREFIX}${sourceId}_${chapterId}`;
+		const data: ChapterProgress = {
+			...progress,
+			timestamp: Date.now()
+		};
+		localStorage.setItem(key, JSON.stringify(data));
+	} catch {
+		// Silent fail
+	}
+}
+
+/**
+ * Get saved chapter progress
+ */
+export function getChapterProgress(sourceId: string, chapterId: string): ChapterProgress | null {
+	if (!browser) return null;
+	try {
+		const key = `${PROGRESS_KEY_PREFIX}${sourceId}_${chapterId}`;
+		const data = localStorage.getItem(key);
+		return data ? JSON.parse(data) : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Clear saved chapter progress
+ */
+export function clearChapterProgress(sourceId: string, chapterId: string): void {
+	if (!browser) return;
+	try {
+		const key = `${PROGRESS_KEY_PREFIX}${sourceId}_${chapterId}`;
+		localStorage.removeItem(key);
+	} catch {
+		// Silent fail
+	}
 }
