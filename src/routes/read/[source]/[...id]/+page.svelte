@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { PageData } from './$types';
-	import { onMount, tick } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import {
 		ArrowLeft,
@@ -367,13 +367,17 @@
 
 	// Trigger restore and reset spreading queue when chapter or source changes
 	$effect(() => {
-		const len = pages ? pages.length : 0;
-		chapterId;
-		source;
-		allowedToLoad = new Array(len).fill(false);
-		loadedStates = new Array(len).fill(false);
-		errorStates = new Array(len).fill(false);
-		restoreChapterPosition();
+		const pageList = pages;
+		const chId = chapterId;
+		const s = source;
+
+		untrack(() => {
+			const len = pageList ? pageList.length : 0;
+			allowedToLoad = new Array(len).fill(false);
+			loadedStates = new Array(len).fill(false);
+			errorStates = new Array(len).fill(false);
+			restoreChapterPosition();
+		});
 	});
 
 	function scrollToTop() {
