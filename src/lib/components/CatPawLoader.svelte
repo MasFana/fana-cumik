@@ -13,11 +13,11 @@
 
 	// Size mapping for SVG
 	const sizeMap = {
-		xs: 'w-6 h-6',
-		sm: 'w-9 h-9',
-		md: 'w-14 h-14',
-		lg: 'w-20 h-20',
-		xl: 'w-28 h-28'
+		xs: 'w-7 h-7',
+		sm: 'w-10 h-10',
+		md: 'w-16 h-16',
+		lg: 'w-24 h-24',
+		xl: 'w-32 h-32'
 	};
 
 	const textSizeMap = {
@@ -31,224 +31,315 @@
 
 <div class="inline-flex flex-col items-center justify-center gap-2 select-none {className}" role="status" aria-label="Loading">
 	{#if variant === 'walking'}
-		<!-- Walking Paws Variant: Alternating step paws -->
-		<div class="flex items-center gap-2 sm:gap-3">
-			<!-- Left Paw -->
+		<!-- Walking/Alternating Paws with Line Draw Effect -->
+		<div class="flex items-center gap-2 sm:gap-4">
+			<!-- Left Paw Outline -->
 			<div class="{sizeMap[size]} paw-step-left">
-				<svg viewBox="0 0 100 100" class="w-full h-full filter drop-shadow-[0_4px_12px_rgba(249,115,22,0.25)]">
+				<svg viewBox="0 0 100 100" class="w-full h-full filter drop-shadow-[0_2px_10px_rgba(249,115,22,0.4)]">
 					<defs>
-						<linearGradient id="pawGradL" x1="0%" y1="0%" x2="100%" y2="100%">
+						<linearGradient id="pawStrokeGradL" x1="0%" y1="0%" x2="100%" y2="100%">
 							<stop offset="0%" stop-color="var(--color-primary, #f97316)" />
 							<stop offset="100%" stop-color="var(--color-accent, #db2777)" />
 						</linearGradient>
 					</defs>
-					<!-- Paw Body -->
-					<path
-						d="M 30 92 C 16 92 12 76 13 60 C 14 44 26 22 50 22 C 74 22 86 44 87 60 C 88 76 84 92 70 92 Z"
-						fill="#27272a"
-						stroke="#3f3f46"
-						stroke-width="2.5"
-					/>
-					<!-- Toe 1 -->
-					<ellipse cx="23" cy="45" rx="6.5" ry="9" transform="rotate(-26 23 45)" fill="url(#pawGradL)" class="toe-bean toe-1" />
-					<!-- Toe 2 -->
-					<ellipse cx="40" cy="32" rx="7.5" ry="10.5" transform="rotate(-8 40 32)" fill="url(#pawGradL)" class="toe-bean toe-2" />
-					<!-- Toe 3 -->
-					<ellipse cx="60" cy="32" rx="7.5" ry="10.5" transform="rotate(8 60 32)" fill="url(#pawGradL)" class="toe-bean toe-3" />
-					<!-- Toe 4 -->
-					<ellipse cx="77" cy="45" rx="6.5" ry="9" transform="rotate(26 77 45)" fill="url(#pawGradL)" class="toe-bean toe-4" />
-					<!-- Main Palm Pad -->
-					<path
-						d="M 33 58 C 24 58 22 67 26 75 C 31 83 40 85 50 85 C 60 85 69 83 74 75 C 78 67 76 58 67 58 C 60 58 55 62 50 63 C 45 62 40 58 33 58 Z"
-						fill="url(#pawGradL)"
-						class="palm-pad"
-					/>
+					<g class="paw-draw-group draw-paw-l">
+						<!-- Paw Outer Outline -->
+						<path
+							d="M 28 88 C 14 88 12 70 14 56 C 16 42 28 24 50 24 C 72 24 84 42 86 56 C 88 70 86 88 72 88"
+							class="paw-outline paw-line-body"
+							stroke="url(#pawStrokeGradL)"
+						/>
+						<!-- Toe 1 (Leftmost) -->
+						<path
+							d="M 18 48 C 14 43 17 35 24 38 C 30 41 29 51 22 53 C 19 53 18 51 18 48 Z"
+							class="paw-outline paw-line-toe toe-1"
+							stroke="url(#pawStrokeGradL)"
+						/>
+						<!-- Toe 2 (Center Left) -->
+						<path
+							d="M 33 34 C 31 26 38 20 44 23 C 50 26 49 37 42 39 C 37 40 33 38 33 34 Z"
+							class="paw-outline paw-line-toe toe-2"
+							stroke="url(#pawStrokeGradL)"
+						/>
+						<!-- Toe 3 (Center Right) -->
+						<path
+							d="M 56 34 C 55 26 62 20 68 23 C 74 26 73 37 66 39 C 61 40 56 38 56 34 Z"
+							class="paw-outline paw-line-toe toe-3"
+							stroke="url(#pawStrokeGradL)"
+						/>
+						<!-- Toe 4 (Rightmost) -->
+						<path
+							d="M 82 48 C 86 43 83 35 76 38 C 70 41 71 51 78 53 C 81 53 82 51 82 48 Z"
+							class="paw-outline paw-line-toe toe-4"
+							stroke="url(#pawStrokeGradL)"
+						/>
+						<!-- Main Heart/Cat Palm Bean -->
+						<path
+							d="M 33 58 C 24 58 23 68 28 75 C 33 82 41 84 50 84 C 59 84 67 82 72 75 C 77 68 76 58 67 58 C 60 58 55 63 50 64 C 45 63 40 58 33 58 Z"
+							class="paw-outline paw-line-palm"
+							stroke="url(#pawStrokeGradL)"
+						/>
+					</g>
 				</svg>
 			</div>
 
-			<!-- Right Paw -->
+			<!-- Right Paw Outline -->
 			<div class="{sizeMap[size]} paw-step-right">
-				<svg viewBox="0 0 100 100" class="w-full h-full filter drop-shadow-[0_4px_12px_rgba(219,39,119,0.25)]">
+				<svg viewBox="0 0 100 100" class="w-full h-full filter drop-shadow-[0_2px_10px_rgba(219,39,119,0.4)]">
 					<defs>
-						<linearGradient id="pawGradR" x1="0%" y1="0%" x2="100%" y2="100%">
+						<linearGradient id="pawStrokeGradR" x1="0%" y1="0%" x2="100%" y2="100%">
 							<stop offset="0%" stop-color="var(--color-accent, #db2777)" />
 							<stop offset="100%" stop-color="var(--color-primary, #f97316)" />
 						</linearGradient>
 					</defs>
-					<!-- Paw Body -->
-					<path
-						d="M 30 92 C 16 92 12 76 13 60 C 14 44 26 22 50 22 C 74 22 86 44 87 60 C 88 76 84 92 70 92 Z"
-						fill="#27272a"
-						stroke="#3f3f46"
-						stroke-width="2.5"
-					/>
-					<!-- Toe 1 -->
-					<ellipse cx="23" cy="45" rx="6.5" ry="9" transform="rotate(-26 23 45)" fill="url(#pawGradR)" class="toe-bean toe-1" />
-					<!-- Toe 2 -->
-					<ellipse cx="40" cy="32" rx="7.5" ry="10.5" transform="rotate(-8 40 32)" fill="url(#pawGradR)" class="toe-bean toe-2" />
-					<!-- Toe 3 -->
-					<ellipse cx="60" cy="32" rx="7.5" ry="10.5" transform="rotate(8 60 32)" fill="url(#pawGradR)" class="toe-bean toe-3" />
-					<!-- Toe 4 -->
-					<ellipse cx="77" cy="45" rx="6.5" ry="9" transform="rotate(26 77 45)" fill="url(#pawGradR)" class="toe-bean toe-4" />
-					<!-- Main Palm Pad -->
-					<path
-						d="M 33 58 C 24 58 22 67 26 75 C 31 83 40 85 50 85 C 60 85 69 83 74 75 C 78 67 76 58 67 58 C 60 58 55 62 50 63 C 45 62 40 58 33 58 Z"
-						fill="url(#pawGradR)"
-						class="palm-pad"
-					/>
+					<g class="paw-draw-group draw-paw-r">
+						<path
+							d="M 28 88 C 14 88 12 70 14 56 C 16 42 28 24 50 24 C 72 24 84 42 86 56 C 88 70 86 88 72 88"
+							class="paw-outline paw-line-body"
+							stroke="url(#pawStrokeGradR)"
+						/>
+						<path
+							d="M 18 48 C 14 43 17 35 24 38 C 30 41 29 51 22 53 C 19 53 18 51 18 48 Z"
+							class="paw-outline paw-line-toe toe-1"
+							stroke="url(#pawStrokeGradR)"
+						/>
+						<path
+							d="M 33 34 C 31 26 38 20 44 23 C 50 26 49 37 42 39 C 37 40 33 38 33 34 Z"
+							class="paw-outline paw-line-toe toe-2"
+							stroke="url(#pawStrokeGradR)"
+						/>
+						<path
+							d="M 56 34 C 55 26 62 20 68 23 C 74 26 73 37 66 39 C 61 40 56 38 56 34 Z"
+							class="paw-outline paw-line-toe toe-3"
+							stroke="url(#pawStrokeGradR)"
+						/>
+						<path
+							d="M 82 48 C 86 43 83 35 76 38 C 70 41 71 51 78 53 C 81 53 82 51 82 48 Z"
+							class="paw-outline paw-line-toe toe-4"
+							stroke="url(#pawStrokeGradR)"
+						/>
+						<path
+							d="M 33 58 C 24 58 23 68 28 75 C 33 82 41 84 50 84 C 59 84 67 82 72 75 C 77 68 76 58 67 58 C 60 58 55 63 50 64 C 45 63 40 58 33 58 Z"
+							class="paw-outline paw-line-palm"
+							stroke="url(#pawStrokeGradR)"
+						/>
+					</g>
 				</svg>
 			</div>
 		</div>
 	{:else}
-		<!-- Single Kneading / Bouncing Cute Paw -->
-		<div class="{sizeMap[size]} paw-knead-container">
-			<svg viewBox="0 0 100 100" class="w-full h-full filter drop-shadow-[0_4px_16px_rgba(249,115,22,0.3)]">
+		<!-- Single Neko Paw Outline Line-Drawing Animation -->
+		<div class="{sizeMap[size]} paw-loader-container">
+			<svg viewBox="0 0 100 100" class="w-full h-full filter drop-shadow-[0_2px_12px_rgba(249,115,22,0.45)]">
 				<defs>
-					<linearGradient id="pawGradSingle" x1="0%" y1="0%" x2="100%" y2="100%">
+					<linearGradient id="nekoPawGrad" x1="0%" y1="0%" x2="100%" y2="100%">
 						<stop offset="0%" stop-color="var(--color-primary, #f97316)" />
 						<stop offset="100%" stop-color="var(--color-accent, #db2777)" />
 					</linearGradient>
-					<filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
-						<feGaussianBlur stdDeviation="3" result="blur" />
-						<feComposite in="SourceGraphic" in2="blur" operator="over" />
-					</filter>
 				</defs>
 
-				<!-- Cute Paw Base -->
-				<path
-					d="M 30 92 C 16 92 12 76 13 60 C 14 44 26 22 50 22 C 74 22 86 44 87 60 C 88 76 84 92 70 92 Z"
-					fill="#1c1c1f"
-					stroke="#3f3f46"
-					stroke-width="2.5"
-				/>
+				<g class="paw-draw-group">
+					<!-- Paw Outline Body (Drawn first) -->
+					<path
+						d="M 28 88 C 14 88 12 70 14 56 C 16 42 28 24 50 24 C 72 24 84 42 86 56 C 88 70 86 88 72 88"
+						class="paw-outline paw-line-body"
+						stroke="url(#nekoPawGrad)"
+					/>
 
-				<!-- Cute Little Claws (soft rounded tips) -->
-				<path d="M 23 34 Q 22 28 21 27 Q 24 29 25 34 Z" fill="#71717a" opacity="0.6" />
-				<path d="M 40 20 Q 40 14 39 13 Q 42 15 42 20 Z" fill="#71717a" opacity="0.6" />
-				<path d="M 60 20 Q 60 14 61 13 Q 58 15 58 20 Z" fill="#71717a" opacity="0.6" />
-				<path d="M 77 34 Q 78 28 79 27 Q 76 29 75 34 Z" fill="#71717a" opacity="0.6" />
+					<!-- Cute Toe Beans Outlines (Drawn consecutively) -->
+					<!-- Toe 1 (Left Pinky Bean) -->
+					<path
+						d="M 18 48 C 14 43 17 35 24 38 C 30 41 29 51 22 53 C 19 53 18 51 18 48 Z"
+						class="paw-outline paw-line-toe toe-1"
+						stroke="url(#nekoPawGrad)"
+					/>
 
-				<!-- Toe Beans with cute wave animations -->
-				<ellipse cx="23" cy="45" rx="6.5" ry="9" transform="rotate(-26 23 45)" fill="url(#pawGradSingle)" class="toe-bean toe-1" />
-				<ellipse cx="40" cy="32" rx="7.5" ry="10.5" transform="rotate(-8 40 32)" fill="url(#pawGradSingle)" class="toe-bean toe-2" />
-				<ellipse cx="60" cy="32" rx="7.5" ry="10.5" transform="rotate(8 60 32)" fill="url(#pawGradSingle)" class="toe-bean toe-3" />
-				<ellipse cx="77" cy="45" rx="6.5" ry="9" transform="rotate(26 77 45)" fill="url(#pawGradSingle)" class="toe-bean toe-4" />
+					<!-- Toe 2 (Left Index Bean) -->
+					<path
+						d="M 33 34 C 31 26 38 20 44 23 C 50 26 49 37 42 39 C 37 40 33 38 33 34 Z"
+						class="paw-outline paw-line-toe toe-2"
+						stroke="url(#nekoPawGrad)"
+					/>
 
-				<!-- Main Palm Pad (Heart-lobed bean) -->
-				<path
-					d="M 33 58 C 24 58 22 67 26 75 C 31 83 40 85 50 85 C 60 85 69 83 74 75 C 78 67 76 58 67 58 C 60 58 55 62 50 63 C 45 62 40 58 33 58 Z"
-					fill="url(#pawGradSingle)"
-					class="palm-pad"
-				/>
+					<!-- Toe 3 (Right Middle Bean) -->
+					<path
+						d="M 56 34 C 55 26 62 20 68 23 C 74 26 73 37 66 39 C 61 40 56 38 56 34 Z"
+						class="paw-outline paw-line-toe toe-3"
+						stroke="url(#nekoPawGrad)"
+					/>
+
+					<!-- Toe 4 (Right Pinky Bean) -->
+					<path
+						d="M 82 48 C 86 43 83 35 76 38 C 70 41 71 51 78 53 C 81 53 82 51 82 48 Z"
+						class="paw-outline paw-line-toe toe-4"
+						stroke="url(#nekoPawGrad)"
+					/>
+
+					<!-- Main Palm Pad (Heart-curved cat pad) -->
+					<path
+						d="M 33 58 C 24 58 23 68 28 75 C 33 82 41 84 50 84 C 59 84 67 82 72 75 C 77 68 76 58 67 58 C 60 58 55 63 50 64 C 45 63 40 58 33 58 Z"
+						class="paw-outline paw-line-palm"
+						stroke="url(#nekoPawGrad)"
+					/>
+				</g>
 			</svg>
 		</div>
 	{/if}
 
 	{#if text}
-		<span class="{textSizeMap[size]} text-zinc-400 animate-pulse tracking-wide font-medium flex items-center gap-1.5">
+		<span class="{textSizeMap[size]} text-zinc-400 font-medium flex items-center gap-1.5 mt-1 tracking-wide">
 			<span>{text}</span>
-			<span class="inline-flex gap-0.5 text-[var(--color-primary)]">
-				<span class="animate-bounce" style="animation-delay: 0ms">🐾</span>
-			</span>
+			<span class="inline-flex text-[var(--color-primary)] animate-pulse">🐾</span>
 		</span>
 	{/if}
 </div>
 
 <style>
-	/* Single Paw Kneading / Bobbing Animation */
-	.paw-knead-container {
-		transform-origin: 50% 85%;
-		animation: catKnead 1.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
-		will-change: transform;
+	/* Base Outline Styling */
+	.paw-outline {
+		fill: transparent;
+		stroke-width: 3.5;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		transition: fill 0.3s ease;
 	}
 
-	@keyframes catKnead {
+	/* Micro bounce & breathing container */
+	.paw-loader-container {
+		animation: pawFloat 2s ease-in-out infinite;
+	}
+
+	@keyframes pawFloat {
 		0%, 100% {
-			transform: translateY(0) scale(1, 1);
-		}
-		28% {
-			transform: translateY(-6px) scale(0.94, 1.06);
-		}
-		65% {
-			transform: translateY(3px) scale(1.06, 0.94);
-		}
-	}
-
-	/* Toe Beans Sequential Wave Animation */
-	.toe-bean {
-		transform-origin: center;
-		animation: beanWave 1.4s ease-in-out infinite;
-	}
-
-	.toe-1 { animation-delay: 0.05s; }
-	.toe-2 { animation-delay: 0.18s; }
-	.toe-3 { animation-delay: 0.31s; }
-	.toe-4 { animation-delay: 0.44s; }
-
-	.palm-pad {
-		transform-origin: 50% 70%;
-		animation: palmPulse 1.4s ease-in-out infinite;
-		animation-delay: 0.25s;
-	}
-
-	@keyframes beanWave {
-		0%, 100% {
-			opacity: 0.75;
-			transform-origin: center;
+			transform: translateY(0) scale(1);
 		}
 		50% {
-			opacity: 1;
-			filter: drop-shadow(0 0 5px var(--color-primary, #f97316));
+			transform: translateY(-4px) scale(1.03);
 		}
 	}
 
-	@keyframes palmPulse {
-		0%, 100% {
-			opacity: 0.85;
+	/* Line Drawing Animation Sequences (dasharray & dashoffset trick) */
+	/* Total loop duration = 2.4s: Draw lines -> Soft Fill Glow -> Fade Out -> Repeat */
+
+	.paw-line-body {
+		stroke-dasharray: 230;
+		stroke-dashoffset: 230;
+		animation: drawPawBody 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+	}
+
+	.paw-line-toe {
+		stroke-dasharray: 60;
+		stroke-dashoffset: 60;
+		animation: drawPawToe 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+	}
+
+	.toe-1 { animation-delay: 0.2s; }
+	.toe-2 { animation-delay: 0.35s; }
+	.toe-3 { animation-delay: 0.5s; }
+	.toe-4 { animation-delay: 0.65s; }
+
+	.paw-line-palm {
+		stroke-dasharray: 180;
+		stroke-dashoffset: 180;
+		animation: drawPawPalm 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+		animation-delay: 0.8s;
+	}
+
+	@keyframes drawPawBody {
+		0% {
+			stroke-dashoffset: 230;
+			fill: transparent;
+			opacity: 0.2;
 		}
-		50% {
+		35%, 75% {
+			stroke-dashoffset: 0;
+			fill: rgba(249, 115, 22, 0.08);
 			opacity: 1;
-			filter: drop-shadow(0 0 7px var(--color-accent, #db2777));
+		}
+		90%, 100% {
+			stroke-dashoffset: 0;
+			fill: transparent;
+			opacity: 0.2;
 		}
 	}
 
-	/* Walking Paws Alternating Step Animations */
+	@keyframes drawPawToe {
+		0% {
+			stroke-dashoffset: 60;
+			fill: transparent;
+			opacity: 0.2;
+		}
+		35%, 75% {
+			stroke-dashoffset: 0;
+			fill: rgba(219, 39, 119, 0.2);
+			opacity: 1;
+		}
+		90%, 100% {
+			stroke-dashoffset: 0;
+			fill: transparent;
+			opacity: 0.2;
+		}
+	}
+
+	@keyframes drawPawPalm {
+		0% {
+			stroke-dashoffset: 180;
+			fill: transparent;
+			opacity: 0.2;
+		}
+		40%, 75% {
+			stroke-dashoffset: 0;
+			fill: rgba(249, 115, 22, 0.2);
+			opacity: 1;
+		}
+		90%, 100% {
+			stroke-dashoffset: 0;
+			fill: transparent;
+			opacity: 0.2;
+		}
+	}
+
+	/* Walking variant animations */
+	.draw-paw-l .paw-line-body { animation-delay: 0s; }
+	.draw-paw-l .toe-1 { animation-delay: 0.15s; }
+	.draw-paw-l .toe-2 { animation-delay: 0.28s; }
+	.draw-paw-l .toe-3 { animation-delay: 0.4s; }
+	.draw-paw-l .toe-4 { animation-delay: 0.52s; }
+	.draw-paw-l .paw-line-palm { animation-delay: 0.65s; }
+
+	.draw-paw-r .paw-line-body { animation-delay: 0.7s; }
+	.draw-paw-r .toe-1 { animation-delay: 0.85s; }
+	.draw-paw-r .toe-2 { animation-delay: 0.98s; }
+	.draw-paw-r .toe-3 { animation-delay: 1.1s; }
+	.draw-paw-r .toe-4 { animation-delay: 1.22s; }
+	.draw-paw-r .paw-line-palm { animation-delay: 1.35s; }
+
 	.paw-step-left {
-		transform-origin: 50% 85%;
-		animation: stepLeft 1.2s ease-in-out infinite;
+		animation: stepLeft 1.4s ease-in-out infinite;
 	}
 
 	.paw-step-right {
-		transform-origin: 50% 85%;
-		animation: stepRight 1.2s ease-in-out infinite;
+		animation: stepRight 1.4s ease-in-out infinite;
 	}
 
 	@keyframes stepLeft {
 		0%, 100% {
-			transform: translateY(4px) scale(0.85);
+			transform: translateY(3px) scale(0.9);
 			opacity: 0.4;
 		}
-		35% {
-			transform: translateY(-5px) scale(1.08);
+		40% {
+			transform: translateY(-4px) scale(1.05);
 			opacity: 1;
-		}
-		65% {
-			transform: translateY(2px) scale(0.95);
-			opacity: 0.6;
 		}
 	}
 
 	@keyframes stepRight {
 		0%, 100% {
-			transform: translateY(-5px) scale(1.08);
+			transform: translateY(-4px) scale(1.05);
 			opacity: 1;
 		}
-		35% {
-			transform: translateY(2px) scale(0.95);
-			opacity: 0.6;
-		}
-		65% {
-			transform: translateY(4px) scale(0.85);
+		50% {
+			transform: translateY(3px) scale(0.9);
 			opacity: 0.4;
 		}
 	}
