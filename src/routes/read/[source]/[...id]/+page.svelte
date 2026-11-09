@@ -40,25 +40,15 @@
 	let resumedPageNotification = $state<number | null>(null);
 	let hideResumeTimeout: ReturnType<typeof setTimeout> | null = null;
 
-	// Spreading Render Queue State
+	// Contiguous Anchor Streaming State (Comix.to Pattern)
 	let allowedToLoad = $state<boolean[]>([]);
 	let loadedStates = $state<boolean[]>([]);
 	let errorStates = $state<boolean[]>([]);
-	const MAX_CONCURRENT_LOADS = 4;
-	const NEAR_FORWARD_RADIUS = 2; // immediate next 2 pages
-	const NEAR_BACKWARD_RADIUS = 1; // immediate previous 1 page
+	let streamTimer: ReturnType<typeof setInterval> | null = null;
+	const ANCHOR_FORWARD_LOOKAHEAD = 8;
+	const ANCHOR_BACKWARD_LOOKAHEAD = 3;
 
-	function getSpreadingScore(idx: number, cursor: number): number {
-		const diff = idx - cursor;
-		if (diff === 0) return 0;
-		if (diff > 0) {
-			return diff;
-		} else {
-			return Math.abs(diff) * 1.5 + 2;
-		}
-	}
-
-	function updateSpreadingQueue() {
+	function expandContiguousRegion(anchor: number) {
 		if (!pages || pages.length === 0) return;
 		const total = pages.length;
 
@@ -68,41 +58,13 @@
 			errorStates = new Array(total).fill(false);
 		}
 
-		// Always grant load permission to immediate near pages around currentPage
-		const nearStart = Math.max(0, currentPage - NEAR_BACKWARD_RADIUS);
-		const nearEnd = Math.min(total - 1, currentPage + NEAR_FORWARD_RADIUS);
+		const start = Math.max(0, anchor - ANCHOR_BACKWARD_LOOKAHEAD);
+		const end = Math.min(total - 1, anchor + ANCHOR_FORWARD_LOOKAHEAD);
 		let hasChanges = false;
 
-		for (let i = nearStart; i <= nearEnd; i++) {
+		for (let i = start; i <= end; i++) {
 			if (!allowedToLoad[i]) {
 				allowedToLoad[i] = true;
-				hasChanges = true;
-			}
-		}
-
-		// Count in-flight image requests (allowed but not loaded and not error)
-		let inFlight = 0;
-		for (let i = 0; i < total; i++) {
-			if (allowedToLoad[i] && !loadedStates[i] && !errorStates[i]) {
-				inFlight++;
-			}
-		}
-
-		// If near pages are loaded or slots open, spread rendering cursor outward
-		const availableSlots = MAX_CONCURRENT_LOADS - inFlight;
-		if (availableSlots > 0) {
-			const candidates: number[] = [];
-			for (let i = 0; i < total; i++) {
-				if (!allowedToLoad[i]) {
-					candidates.push(i);
-				}
-			}
-
-			candidates.sort((a, b) => getSpreadingScore(a, currentPage) - getSpreadingScore(b, currentPage));
-
-			const countToAllow = Math.min(availableSlots, candidates.length);
-			for (let k = 0; k < countToAllow; k++) {
-				allowedToLoad[candidates[k]] = true;
 				hasChanges = true;
 			}
 		}
@@ -112,26 +74,61 @@
 		}
 	}
 
-	function requestImmediateLoad(idx: number) {
-		if (idx >= 0 && idx < allowedToLoad.length && !allowedToLoad[idx]) {
-			allowedToLoad[idx] = true;
-			allowedToLoad = [...allowedToLoad];
-			updateSpreadingQueue();
+	function startBackgroundStream() {
+		stopBackgroundStream();
+		streamTimer = setInterval(() => {
+			if (!pages || pages.length === 0) return;
+			const total = pages.length;
+
+			// Advance the frontier forward from currentPage
+			let nextIndex = -1;
+			for (let i = currentPage; i < total; i++) {
+				if (!allowedToLoad[i]) {
+					nextIndex = i;
+					break;
+				}
+			}
+			if (nextIndex === -1) {
+				for (let i = 0; i < total; i++) {
+					if (!allowedToLoad[i]) {
+						nextIndex = i;
+						break;
+					}
+				}
+			}
+
+			if (nextIndex !== -1) {
+				expandContiguousRegion(nextIndex);
+			} else {
+				stopBackgroundStream();
+			}
+		}, 350);
+	}
+
+	function stopBackgroundStream() {
+		if (streamTimer) {
+			clearInterval(streamTimer);
+			streamTimer = null;
 		}
+	}
+
+	function requestImmediateLoad(idx: number) {
+		expandContiguousRegion(idx);
 	}
 
 	function handlePageLoaded(idx: number) {
 		if (idx >= 0 && idx < loadedStates.length) {
 			loadedStates[idx] = true;
 			errorStates[idx] = false;
-			updateSpreadingQueue();
+			// Contiguous forward expansion: as page idx loads, continuously push frontier forward
+			expandContiguousRegion(Math.max(currentPage, idx));
 		}
 	}
 
 	function handlePageError(idx: number) {
 		if (idx >= 0 && idx < errorStates.length) {
 			errorStates[idx] = true;
-			updateSpreadingQueue();
+			expandContiguousRegion(idx);
 		}
 	}
 
@@ -275,7 +272,7 @@
 			currentPage++;
 			horizontalLoaded = false;
 			saveCurrentProgress(currentPage);
-			updateSpreadingQueue();
+			expandContiguousRegion(currentPage);
 		} else if (nextChapter) {
 			goToChapter(nextChapter.id);
 		}
@@ -286,7 +283,7 @@
 			currentPage--;
 			horizontalLoaded = false;
 			saveCurrentProgress(currentPage);
-			updateSpreadingQueue();
+			expandContiguousRegion(currentPage);
 		} else if (prevChapter) {
 			goToChapter(prevChapter.id);
 		}
@@ -326,7 +323,7 @@
 		if (currentPage !== idx) {
 			currentPage = idx;
 			saveCurrentProgress(idx);
-			updateSpreadingQueue();
+			expandContiguousRegion(idx);
 		}
 	}
 
@@ -339,7 +336,8 @@
 			currentPage = saved.pageIndex;
 			initialActivePage = saved.pageIndex;
 			resumedPageNotification = saved.pageIndex + 1;
-			updateSpreadingQueue();
+			expandContiguousRegion(saved.pageIndex);
+			startBackgroundStream();
 
 			if (hideResumeTimeout) clearTimeout(hideResumeTimeout);
 			hideResumeTimeout = setTimeout(() => {
@@ -360,24 +358,30 @@
 			// Brand new chapter -> reset to top
 			currentPage = 0;
 			initialActivePage = 0;
-			updateSpreadingQueue();
+			expandContiguousRegion(0);
+			startBackgroundStream();
 			window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
 		}
 	}
 
-	// Trigger restore and reset spreading queue when chapter or source changes
+	// Trigger restore and reset contiguous streaming when chapter or source changes
 	$effect(() => {
 		const pageList = pages;
 		const chId = chapterId;
 		const s = source;
 
 		untrack(() => {
+			stopBackgroundStream();
 			const len = pageList ? pageList.length : 0;
 			allowedToLoad = new Array(len).fill(false);
 			loadedStates = new Array(len).fill(false);
 			errorStates = new Array(len).fill(false);
 			restoreChapterPosition();
 		});
+
+		return () => {
+			stopBackgroundStream();
+		};
 	});
 
 	function scrollToTop() {

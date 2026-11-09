@@ -47,7 +47,7 @@
 	onMount(() => {
 		if (!containerEl) return;
 
-		// 1. Fast Preload Observer: triggers immediate high priority if user scrolls near before background spread
+		// 1. Fast Preload Observer: triggers immediate contiguous expansion if user scrolls near
 		const preloadObserver = new IntersectionObserver(
 			(entries) => {
 				for (const entry of entries) {
@@ -57,7 +57,7 @@
 					}
 				}
 			},
-			{ rootMargin: '1200px 0px 1200px 0px' }
+			{ rootMargin: '2400px 0px 2400px 0px' }
 		);
 
 		preloadObserver.observe(containerEl);
@@ -112,13 +112,7 @@
 	<!-- Loading state with Cat Paw Outline animation -->
 	{#if !loaded && !error}
 		<div class="absolute inset-0 flex flex-col items-center justify-center p-6 z-10 pointer-events-none">
-			{#if shouldLoad}
-				<CatPawLoader size="lg" text="Halaman {pageIndex + 1} / {totalPages}" />
-			{:else}
-				<div class="flex flex-col items-center justify-center gap-2 text-zinc-600 text-xs sm:text-sm">
-					<span>Halaman {pageIndex + 1} / {totalPages}</span>
-				</div>
-			{/if}
+			<CatPawLoader size="lg" text="Halaman {pageIndex + 1} / {totalPages}" />
 		</div>
 	{/if}
 
