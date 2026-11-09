@@ -709,7 +709,7 @@
 
 			<!-- Vertical Scroll Mode with Spreading Priority Viewport Loading -->
 			{#if readerMode === 'vertical'}
-				<div class="reader-pages flex flex-col items-center pt-12 sm:pt-14 pb-8 w-full">
+				<div class="reader-pages flex flex-col items-center pt-0 pb-8 w-full">
 					{#each pages as pageUrl, i (chapterId + '-' + i)}
 						<ReaderPage
 							pageIndex={i}

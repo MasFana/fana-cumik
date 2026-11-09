@@ -107,7 +107,7 @@
 	bind:this={containerEl}
 	id="reader-page-{pageIndex}"
 	data-page={pageIndex}
-	class="reader-page-container relative flex flex-col items-center justify-center w-full min-h-[500px] sm:min-h-[650px] bg-zinc-950/40"
+	class="reader-page-container relative flex flex-col items-center w-full {!loaded ? 'min-h-[500px] sm:min-h-[650px] bg-zinc-950/40 justify-center' : 'min-h-0'}"
 >
 	<!-- Loading state with Cat Paw Outline animation -->
 	{#if !loaded && !error}
@@ -154,12 +154,22 @@
 </div>
 
 <style>
+	.reader-page-container {
+		margin: 0;
+		padding: 0;
+		line-height: 0;
+		font-size: 0;
+	}
+
 	/* Mobile: fill viewport width */
 	.reader-image {
 		width: 100vw;
 		max-width: 100vw;
 		height: auto;
 		display: block;
+		margin: 0;
+		padding: 0;
+		vertical-align: bottom;
 		transition: transform 0.2s ease-out, opacity 0.3s ease;
 		transform-origin: center center;
 	}
