@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
-	import { Search, ChevronLeft, ChevronRight, Loader2, Github, Star, AlertCircle, RefreshCw } from 'lucide-svelte';
+	import { Search, ChevronLeft, ChevronRight, Github, Star, AlertCircle, RefreshCw } from 'lucide-svelte';
 	import { getImpl, setImpl } from '$lib/stores/impl';
 	import CatPawLoader from '$lib/components/CatPawLoader.svelte';
 	import MangaCover from '$lib/components/MangaCover.svelte';
@@ -99,7 +99,7 @@
 					class="px-3 py-2 bg-[var(--color-primary)] hover:opacity-90 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
 				>
 					{#if loading}
-						<Loader2 class="w-4 h-4 animate-spin" />
+						<CatPawLoader size="xs" />
 					{:else}
 						<RefreshCw class="w-4 h-4" />
 						Retry
@@ -145,7 +145,7 @@
 					class="px-4 py-2.5 bg-[var(--color-primary)] hover:opacity-90 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
 				>
 					{#if loading}
-						<Loader2 class="w-4 h-4 animate-spin" />
+						<CatPawLoader size="xs" />
 					{:else}
 						Search
 					{/if}
@@ -165,7 +165,7 @@
 	<!-- Loading -->
 	{#if loading}
 		<div class="flex justify-center py-20">
-			<CatPawLoader size="xl" text="Mencari manga..." variant="walking" />
+			<CatPawLoader size="xl" variant="walking" />
 		</div>
 	{:else if mangas.length === 0}
 		<div class="text-center py-20 text-zinc-500">

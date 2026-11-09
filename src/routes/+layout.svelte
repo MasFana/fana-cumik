@@ -1,7 +1,7 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.ico';
-	import { BookOpen, Home, Library, History, Loader2 } from 'lucide-svelte';
+	import { BookOpen, Home, Library, History } from 'lucide-svelte';
 	import { getHistory } from '$lib/stores/history';
 	import { page, navigating } from '$app/stores';
 	import CatPawLoader from '$lib/components/CatPawLoader.svelte';
@@ -58,7 +58,7 @@
 			class="fixed inset-0 bg-zinc-950/80 backdrop-blur-sm z-[100] flex items-center justify-center"
 			style="animation: fadeIn 0.2s ease-out;"
 		>
-			<CatPawLoader size="xl" text="Meow-loading..." variant="walking" />
+			<CatPawLoader size="xl" variant="walking" />
 		</div>
 	{/if}
 
