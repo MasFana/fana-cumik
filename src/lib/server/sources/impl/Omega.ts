@@ -156,7 +156,7 @@ export class OmegaSource extends BaseSource {
 		const authors = detail.author ? [detail.author] : [];
 
 		return {
-			id: slug,
+			id: `/series/${slug}`,
 			sourceId: this.id,
 			title: detail.title,
 			cover: detail.thumbnail || '',

@@ -18,10 +18,12 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
     // The [...id] catch-all gives us the full path as an array, reconstruct with slashes
     const chapterId = `/${Array.isArray(id) ? id.join('/') : id}`;
     
-    // Remove the chapter part from the ID to get the manga ID.
-    // The alternation also matches inside "chapters", which can wipe the whole
-    // path (e.g. WeebCentral's /chapters/<ULID>); fall back to the chapter path.
-    const stripped = chapterId.replace(/\/(chapter|ch|episode|ep)[-/_]?.+$/i, '');
+    // Remove the chapter part from the ID to get the manga ID. Anchoring on the last
+    // "/chapter" segment keeps slugs that merely start with "ch" (Komiku's
+    // /manga/chronicles-.../) intact. WeebCentral's /chapters/<ULID> has no manga id in
+    // its path, so the strip empties it; fall back to the chapter path, which the
+    // adapter resolves back to its series page.
+    const stripped = chapterId.replace(/^([\s\S]*)\/(?:chapter|ch|episode|ep)s?[-/_][\s\S]*$/i, '$1');
     const mangaId = stripped || chapterId;
     // For History
     const mangaSlug = mangaId.startsWith('/') ? mangaId.slice(1): mangaId;
