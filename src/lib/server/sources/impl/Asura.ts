@@ -1,6 +1,5 @@
 import { BaseSource } from '../BaseSource';
 import type { Manga, MangaDetails, Chapter } from '../types';
-import * as cheerio from 'cheerio';
 
 /**
  * AsuraScans Adapter (asurascans.com)
@@ -8,6 +7,8 @@ import * as cheerio from 'cheerio';
  * - Details: #description-text for synopsis, a[href*="/browse?genres="] for genres,
  *   a[href*="/browse?author="] / a[href*="/browse?artist="] for credits.
  * - Status lives in a card labelled "Status" whose value is the following bold span.
+ *
+ * Parsing is regex over the raw HTML (no DOM); see BaseSource for the readers.
  */
 export class AsuraSource extends BaseSource {
 	id = 'asura';
@@ -18,13 +19,47 @@ export class AsuraSource extends BaseSource {
 		return (s || '').replace(/\s+/g, ' ').trim();
 	}
 
-	private cards($: cheerio.CheerioAPI): Manga[] {
+	private firstImg(html: string): string {
+		return BaseSource.attr(BaseSource.tag(html, /<img\b[^>]*>/i), 'src');
+	}
+
+	/** The element around the first match of `marker`, or '' when absent. */
+	private region(html: string, marker: RegExp): string {
+		const at = html.search(marker);
+		return at < 0 ? '' : BaseSource.elementAt(html, at);
+	}
+
+	/** JSON-LD nodes of every `application/ld+json` block on the page. */
+	private jsonLd(html: string): Record<string, unknown>[] {
+		const nodes: Record<string, unknown>[] = [];
+		for (const block of BaseSource.tags(
+			html,
+			/<script\b[^>]*type="application\/ld\+json"[^>]*>[\s\S]*?<\/script>/gi
+		)) {
+			try {
+				const raw = JSON.parse(BaseSource.inner(block, 'script') || '{}') as
+					| Record<string, unknown>
+					| Record<string, unknown>[];
+				const list = Array.isArray(raw) ? raw : [raw, ...((raw['@graph'] as []) || [])];
+				for (const node of list) if (node && typeof node === 'object') nodes.push(node);
+			} catch {
+				/* ignore malformed JSON-LD */
+			}
+		}
+		return nodes;
+	}
+
+	private cards(html: string): Manga[] {
 		const res: Manga[] = [];
-		$('.series-card').each((_, el) => {
-			const $card = $(el);
-			const link = $card.find('a[href^="/comics/"]').first().attr('href') || '';
-			const image = $card.find('img').first().attr('src') || '';
-			const title = this.clean($card.find('h3').first().text());
+		for (const { body } of BaseSource.records(
+			html,
+			/<div[^>]*\bclass="[^"]*\bseries-card\b[^"]*"[^>]*>/gi
+		)) {
+			const link =
+				BaseSource.attr(BaseSource.tag(body, /<a\b[^>]*href="\/comics\/[^"]*"[^>]*>/i), 'href') ||
+				'';
+			const image = this.firstImg(body);
+			const title = this.clean(BaseSource.text(BaseSource.tag(body, /<h3\b[^>]*>[\s\S]*?<\/h3>/i)));
 
 			if (title && link) {
 				const cleanLink = link.startsWith('/') ? link : `/${link}`;
@@ -35,14 +70,14 @@ export class AsuraSource extends BaseSource {
 					sourceId: this.id
 				});
 			}
-		});
+		}
 		return res.filter((m, i, a) => a.findIndex((x) => x.id === m.id) === i);
 	}
 
 	async getLatestManga(page: number): Promise<Manga[]> {
 		try {
 			const html = await this.fetchHtml(`/browse/comics?page=${page}`);
-			return this.cards(cheerio.load(html));
+			return this.cards(html);
 		} catch (e) {
 			console.error('[Asura] getLatestManga failed:', e);
 			return [];
@@ -51,67 +86,105 @@ export class AsuraSource extends BaseSource {
 
 	async searchManga(query: string): Promise<Manga[]> {
 		try {
-			const html = await this.fetchHtml(`/browse/comics?search=${encodeURIComponent(query)}&page=1`);
-			return this.cards(cheerio.load(html));
+			const html = await this.fetchHtml(
+				`/browse/comics?search=${encodeURIComponent(query)}&page=1`
+			);
+			return this.cards(html);
 		} catch (e) {
 			console.error('[Asura] searchManga failed:', e);
 			return [];
 		}
 	}
 
-	/** Value of the "Status"/"Type" info card: label div followed by bold value span. */
-	private infoCard($: cheerio.CheerioAPI, label: string): string {
-		let value = '';
-		$('div.text-xs').each((_, el) => {
-			const $label = $(el);
-			if (this.clean($label.text()).toLowerCase() !== label.toLowerCase()) return;
-			const fromCard = this.clean($label.parent().find('span.text-base').first().text());
-			if (fromCard) value = fromCard;
-		});
-		return value;
+	/** Value of the info card whose label reads `label`: its first `span.text-base`. */
+	private infoCard(html: string, label: string): string {
+		for (const { body, at } of BaseSource.records(
+			html,
+			/<div[^>]*\bclass="[^"]*\btext-xs\b[^"]*"[^>]*>/gi
+		)) {
+			if (
+				this.clean(BaseSource.text(BaseSource.inner(body, 'div'))).toLowerCase() !==
+				label.toLowerCase()
+			)
+				continue;
+			const card = BaseSource.elementAt(html, at - 1);
+			const value = this.clean(
+				BaseSource.text(
+					BaseSource.tag(
+						card,
+						/<span\b[^>]*\bclass="[^"]*\btext-base\b[^"]*"[^>]*>[\s\S]*?<\/span>/i
+					)
+				)
+			);
+			if (value) return value;
+		}
+		return '';
 	}
 
-	private extractGenres($: cheerio.CheerioAPI): string[] {
+	private extractGenres(html: string): string[] {
 		const genres: string[] = [];
-		$('a[href*="genres="]').each((_, el) => {
-			const g = this.clean($(el).text());
+		for (const tag of BaseSource.tags(
+			html,
+			/<a\b[^>]*href="[^"]*genres=[^"]*"[^>]*>[\s\S]*?<\/a>/gi
+		)) {
+			const g = this.clean(BaseSource.text(tag));
 			if (g && !genres.some((x) => x.toLowerCase() === g.toLowerCase())) genres.push(g);
-		});
+		}
 		if (genres.length) return genres;
 
 		// Fallback: JSON-LD genre array
-		$('script[type="application/ld+json"]').each((_, el) => {
-			try {
-				const raw = JSON.parse($(el).html() || '{}');
-				const nodes = Array.isArray(raw) ? raw : [raw, ...(raw['@graph'] || [])];
-				for (const node of nodes) {
-					const list = node?.genre;
-					if (!list) continue;
-					for (const g of Array.isArray(list) ? list : [list]) {
-						const name = this.clean(String(g));
-						if (name && !genres.some((x) => x.toLowerCase() === name.toLowerCase())) genres.push(name);
-					}
-				}
-			} catch {
-				/* ignore malformed JSON-LD */
+		for (const node of this.jsonLd(html)) {
+			const list = node.genre as unknown;
+			if (!list) continue;
+			for (const g of Array.isArray(list) ? list : [list]) {
+				const name = this.clean(String(g));
+				if (name && !genres.some((x) => x.toLowerCase() === name.toLowerCase())) genres.push(name);
 			}
-		});
+		}
 		return genres;
 	}
 
-	private extractAuthors($: cheerio.CheerioAPI): string[] {
+	private extractAuthors(html: string): string[] {
 		const authors: string[] = [];
-		$('a[href*="/browse?author="], a[href*="/browse?artist="]').each((_, el) => {
-			const name = this.clean($(el).text());
+		for (const tag of BaseSource.tags(
+			html,
+			/<a\b[^>]*href="[^"]*\/browse\?(?:author|artist)=[^"]*"[^>]*>[\s\S]*?<\/a>/gi
+		)) {
+			const name = this.clean(BaseSource.text(tag));
 			if (name && !authors.includes(name)) authors.push(name);
-		});
+		}
 		return authors;
 	}
 
-	private extractDescription($: cheerio.CheerioAPI): string {
-		const primary = this.clean($('#description-text').first().text());
+	private extractDescription(html: string): string {
+		const primary = this.clean(BaseSource.text(this.region(html, /id="description-text"/i)));
 		if (primary) return primary;
-		return this.clean($('.series-description, .prose').first().text());
+		const starts = [
+			html.search(/class="[^"]*\bseries-description\b[^"]*"/i),
+			html.search(/class="[^"]*\bprose\b[^"]*"/i)
+		]
+			.filter((i) => i >= 0)
+			.sort((a, b) => a - b);
+		return starts.length ? this.clean(BaseSource.text(BaseSource.elementAt(html, starts[0]))) : '';
+	}
+
+	/** First cover image: `/covers/` src or a `cover` alt, then og:image, then JSON-LD. */
+	private extractCover(html: string): string {
+		for (const { body } of BaseSource.records(html, /<img\b[^>]*>/gi)) {
+			const src = BaseSource.attr(body, 'src');
+			if (src.includes('/covers/') || BaseSource.attr(body, 'alt').includes('cover')) return src;
+		}
+		const og = BaseSource.attr(
+			BaseSource.tag(html, /<meta\b[^>]*property="og:image"[^>]*>/i),
+			'content'
+		);
+		if (og) return og;
+		for (const node of this.jsonLd(html)) {
+			const image = node.image as string | { url?: string } | undefined;
+			const url = typeof image === 'string' ? image : image?.url;
+			if (typeof url === 'string') return url;
+		}
+		return '';
 	}
 
 	async getMangaDetails(mangaId: string): Promise<MangaDetails> {
@@ -121,57 +194,52 @@ export class AsuraSource extends BaseSource {
 		}
 
 		const html = await this.fetchHtml(normalizedId);
-		const $ = cheerio.load(html);
 
-		const title = this.clean($('h1').first().text()) || normalizedId;
-		// Try: specific cover class/attr, meta og:image, or JSON-LD image
-		let cover =
-			$('img[src*="/covers/"], img[alt*="cover"], .series-cover img').first().attr('src') ||
-			$('meta[property="og:image"]').attr('content') ||
-			'';
-
-		if (!cover) {
-			$('script[type="application/ld+json"]').each((_, el) => {
-				try {
-					const raw = JSON.parse($(el).html() || '{}');
-					const nodes = Array.isArray(raw) ? raw : [raw, ...(raw['@graph'] || [])];
-					for (const node of nodes) {
-						if (node?.image) {
-							const img = typeof node.image === 'string' ? node.image : node.image?.url;
-							if (img && typeof img === 'string') {
-								cover = img;
-								return false;
-							}
-						}
-					}
-				} catch {
-					/* ignore */
-				}
-			});
-		}
+		const title = this.clean(BaseSource.text(BaseSource.tag(html, /<h1\b[^>]*>[\s\S]*?<\/h1>/i)));
+		const cover = this.extractCover(html);
 
 		// Chapter links are: /comics/{slug}/chapter/{num}. The page repeats the list
 		// across tab panels, so dedupe by chapter id.
-		const mangaSlug = normalizedId.replace('/comics/', '');
+		const mangaSlug = normalizedId.replace('/comics/', '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 		const chapters: Chapter[] = [];
 		const seen = new Set<string>();
 
-		$(`a[href^="/comics/${mangaSlug}/chapter/"]`).each((_, el) => {
-			const $el = $(el);
-			const link = $el.attr('href') || '';
-			if (!link) return;
+		for (const { body } of BaseSource.records(
+			html,
+			new RegExp(`<a\\b[^>]*href="/comics/${mangaSlug}/chapter/[^"]*"[^>]*>`, 'gi')
+		)) {
+			const link = BaseSource.attr(BaseSource.open(body), 'href');
+			if (!link) continue;
 			// Skip the hero "First Chapter"/"Continue" button
-			if ($el.find('[data-continue-label]').length || $el.find('svg.lucide-eye').length) return;
+			if (
+				/data-continue-label/i.test(body) ||
+				/<svg\b[^>]*\bclass="[^"]*\blucide-eye\b/i.test(body)
+			)
+				continue;
 
 			const cleanLink = link.startsWith('/') ? link : `/${link}`;
-			if (seen.has(cleanLink)) return;
+			if (seen.has(cleanLink)) continue;
 			seen.add(cleanLink);
 
 			const numMatch = link.match(/\/chapter\/(\d+(?:[.-]\d+)?)/i);
 			const number = numMatch ? parseFloat(numMatch[1]) : 0;
 
-			const chapterTitle = this.clean($el.find('span.font-medium').first().text());
-			const chapterDate = this.clean($el.find('span.text-sm.text-white\\/40, span[class*="text-white/40"]').first().text());
+			const chapterTitle = this.clean(
+				BaseSource.text(
+					BaseSource.tag(
+						body,
+						/<span\b[^>]*\bclass="[^"]*\bfont-medium\b[^"]*"[^>]*>[\s\S]*?<\/span>/i
+					)
+				)
+			);
+			const chapterDate = this.clean(
+				BaseSource.text(
+					BaseSource.tag(
+						body,
+						/<span\b[^>]*\bclass="[^"]*\btext-sm\b[^"]*\btext-white\/40\b[^"]*"[^>]*>[\s\S]*?<\/span>/i
+					)
+				)
+			);
 
 			chapters.push({
 				id: cleanLink,
@@ -179,21 +247,21 @@ export class AsuraSource extends BaseSource {
 				number,
 				date: chapterDate
 			});
-		});
+		}
 
 		chapters.sort((a, b) => b.number - a.number);
 
-		const status = this.infoCard($, 'Status');
+		const status = this.infoCard(html, 'Status');
 
 		return {
 			id: normalizedId,
 			sourceId: this.id,
-			title,
+			title: title || normalizedId,
 			cover: cover.startsWith('http') ? cover : cover ? `https:${cover}` : '',
-			description: this.extractDescription($),
-			authors: this.extractAuthors($),
+			description: this.extractDescription(html),
+			authors: this.extractAuthors(html),
 			status: status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Ongoing',
-			genres: this.extractGenres($),
+			genres: this.extractGenres(html),
 			chapters
 		};
 	}
@@ -205,40 +273,47 @@ export class AsuraSource extends BaseSource {
 		}
 
 		const html = await this.fetchHtml(normalizedPath);
-		const $ = cheerio.load(html);
 
 		const images: string[] = [];
 
 		// Try to find images in embedded script data
-		const scripts = $('script').toArray();
-		for (const script of scripts) {
-			const content = $(script).html() || '';
-			if (content.includes('pages') || content.includes('chapter-images') || content.includes('imageUrls')) {
-				const matches = content.match(/(?:pages|images|imageUrls|chapterImages)\s*[=:]\s*(\[.*?\])/s);
-				if (matches && matches[1]) {
-					try {
-						const pages = JSON.parse(matches[1]) as Array<{ url: string } | string>;
-						for (const page of pages) {
-							const url = typeof page === 'string' ? page : page.url;
-							if (url) {
-								images.push(url.startsWith('http') ? url : `https://cdn.asurascans.com${url.startsWith('/') ? '' : '/'}${url}`);
-							}
+		for (const { body } of BaseSource.records(html, /<script\b[^>]*>/gi)) {
+			const content = BaseSource.inner(body, 'script');
+			if (
+				!content.includes('pages') &&
+				!content.includes('chapter-images') &&
+				!content.includes('imageUrls')
+			) {
+				continue;
+			}
+			const matches = content.match(/(?:pages|images|imageUrls|chapterImages)\s*[=:]\s*(\[.*?\])/s);
+			if (matches && matches[1]) {
+				try {
+					const pages = JSON.parse(matches[1]) as Array<{ url: string } | string>;
+					for (const page of pages) {
+						const url = typeof page === 'string' ? page : page.url;
+						if (url) {
+							images.push(
+								url.startsWith('http')
+									? url
+									: `https://cdn.asurascans.com${url.startsWith('/') ? '' : '/'}${url}`
+							);
 						}
-						if (images.length > 0) return images;
-					} catch {
-						/* ignore unparsable payload */
 					}
+					if (images.length > 0) return images;
+				} catch {
+					/* ignore unparsable payload */
 				}
 			}
 		}
 
-		// Fallback: look for img tags in reader container
-		$('.chapter-reader img, .reading-content img, [data-page] img, .chapter-content img').each((_, el) => {
-			const src = $(el).attr('src') || $(el).attr('data-src') || '';
-			if (src && (src.includes('cdn.asurascans.com') || src.includes('asura-images'))) {
-				images.push(src.startsWith('http') ? src : `https:${src}`);
-			}
-		});
+		// Fallback: reader images, as `[data-page] img` on this site version.
+		for (const { body, before } of BaseSource.records(html, /<img\b[^>]*>/gi)) {
+			const src = BaseSource.attr(body, 'src') || BaseSource.attr(body, 'data-src');
+			if (!src || !(src.includes('cdn.asurascans.com') || src.includes('asura-images'))) continue;
+			if (!/\bdata-page\s*=/i.test(before.slice(before.lastIndexOf('</div>') + 6))) continue;
+			images.push(src.startsWith('http') ? src : `https:${src}`);
+		}
 
 		return images;
 	}

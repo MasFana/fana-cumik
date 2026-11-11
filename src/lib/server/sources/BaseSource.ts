@@ -74,13 +74,13 @@ export abstract class BaseSource implements IMangaSource {
 	 * Split HTML at every marker match (one pass), for repeated records such as
 	 * chapter rows. `before` is the 600 characters ahead of the match: the context
 	 * a DOM ancestor would see. `body` runs to the next match, so a capture in one
-	 * record can never bleed into the next.
+	 * record can never bleed into the next. `at` is the match offset in `html`.
 	 */
 	protected static records(
 		html: string,
 		marker: RegExp,
 		context = 600
-	): { before: string; body: string }[] {
+	): { before: string; body: string; at: number }[] {
 		const re = new RegExp(
 			marker.source,
 			marker.flags.includes('g') ? marker.flags : `${marker.flags}g`
@@ -89,7 +89,8 @@ export abstract class BaseSource implements IMangaSource {
 		for (const m of html.matchAll(re)) at.push(m.index);
 		return at.map((start, i) => ({
 			before: html.slice(Math.max(0, start - context), start),
-			body: html.slice(start, i + 1 < at.length ? at[i + 1] : html.length)
+			body: html.slice(start, i + 1 < at.length ? at[i + 1] : html.length),
+			at: start
 		}));
 	}
 
