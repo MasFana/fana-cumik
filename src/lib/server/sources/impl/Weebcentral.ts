@@ -48,16 +48,19 @@ export class WeebcentralSource extends BaseSource {
 	}
 
 	/**
-	 * Chapter list. The `/series/<id>/full-chapter-list` HTMX fragment is
-	 * unreliable (intermittently 307-redirects to a /404 page that still answers
-	 * HTTP 200), so we use the deterministic `chapter-select` fragment instead:
-	 * it returns every chapter as a button, keyed off any one chapter id.
+	 * Chapter list, with release times. `/series/<id>/full-chapter-list` is the rich fragment:
+	 * one row per chapter (including the newest, which `chapter-select` renders as a button,
+	 * not a link) each with a `<time datetime>`. It intermittently redirects to a /404 page
+	 * that still answers HTTP 200, so fall back to `chapter-select` (chapters only, no dates).
 	 */
-	private async fetchChapterSelect(seriesPath: string, seed: string): Promise<string> {
-		if (!seed) return '';
-		// The fragment lives at /series/<ULID>/chapter-select — the slug must be dropped.
+	private async fetchChapterList(seriesPath: string, seed: string): Promise<string> {
 		const id = seriesPath.match(/\/series\/([^/]+)/)?.[1];
 		if (!id) return '';
+		try {
+			const full = await this.fetchHtml(`/series/${id}/full-chapter-list`);
+			if (/<time[^>]*datetime=/.test(full)) return full;
+		} catch {}
+		if (!seed) return '';
 		try {
 			return await this.fetchHtml(
 				`/series/${id}/chapter-select?current_chapter=${encodeURIComponent(seed)}`
@@ -141,8 +144,8 @@ export class WeebcentralSource extends BaseSource {
 		}
 	}
 
-	/** Parse `chapter-select` buttons: <a href=".../chapters/<ID>" ...>Chapter N</a>. */
-	private extractSelectChapters($: cheerio.CheerioAPI): Chapter[] {
+	/** Parse chapter rows: <a href=".../chapters/<ID>">Chapter N</a> plus the row's date. */
+	private extractChapters($: cheerio.CheerioAPI): Chapter[] {
 		const chapters: Chapter[] = [];
 		const seen = new Set<string>();
 		$('a[href*="/chapters/"]').each((_, el) => {
@@ -153,7 +156,12 @@ export class WeebcentralSource extends BaseSource {
 			const text = this.clean($a.text());
 			const numMatch = text.match(/chapter\s*([\d.]+)/i);
 			const number = numMatch ? parseFloat(numMatch[1]) : 0;
-			chapters.push({ id, title: text || `Chapter ${number}`, number, date: '' });
+			// The row wrapper holds the release time, as <time datetime> or in checkNewChapter().
+			const row = $a.closest('div');
+			const date =
+				this.clean(row.find('time[datetime]').first().attr('datetime') || '') ||
+				this.clean(row.attr('x-data')?.match(/checkNewChapter\('([^']+)'\)/)?.[1] || '');
+			chapters.push({ id, title: text || `Chapter ${number}`, number, date });
 		});
 		chapters.sort((a, b) => b.number - a.number);
 		return chapters;
@@ -175,10 +183,11 @@ export class WeebcentralSource extends BaseSource {
 		const $ = cheerio.load(html);
 
 		// Chapters: seed from an inline chapter link, then expand via chapter-select.
-		const seed = this.toPath($('a[href*="/chapters/"]').first().attr('href') || '').split('/').pop() || '';
-		const chapters = this.extractSelectChapters(
-			cheerio.load(await this.fetchChapterSelect(path, seed))
-		);
+		const seed =
+			this.toPath($('a[href*="/chapters/"]').first().attr('href') || '')
+				.split('/')
+				.pop() || '';
+		const chapters = this.extractChapters(cheerio.load(await this.fetchChapterList(path, seed)));
 
 		const title =
 			this.clean($('h1.hidden.md\\:block').first().text()) ||
@@ -187,11 +196,16 @@ export class WeebcentralSource extends BaseSource {
 			path;
 
 		const cover = this.abs(
-			$('meta[property="og:image"]').attr('content') || $('img[src*="/cover/"]').first().attr('src') || ''
+			$('meta[property="og:image"]').attr('content') ||
+				$('img[src*="/cover/"]').first().attr('src') ||
+				''
 		);
 
 		// Meta rows are <li><strong>Label(s): </strong> ...value...</li>
-		const norm = (s: string) => this.clean(s).toLowerCase().replace(/[^a-z]/g, '');
+		const norm = (s: string) =>
+			this.clean(s)
+				.toLowerCase()
+				.replace(/[^a-z]/g, '');
 		const metaOf = (label: string): string => {
 			const want = norm(label);
 			let val = '';
@@ -213,7 +227,8 @@ export class WeebcentralSource extends BaseSource {
 			}
 		}
 
-		const status = this.clean($('a[href*="included_status="]').first().text()) || metaOf('Status') || 'Ongoing';
+		const status =
+			this.clean($('a[href*="included_status="]').first().text()) || metaOf('Status') || 'Ongoing';
 
 		const genres: string[] = [];
 		$('a[href*="included_tag="]').each((_, el) => {

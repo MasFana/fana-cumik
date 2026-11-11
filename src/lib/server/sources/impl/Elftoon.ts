@@ -114,15 +114,20 @@ export class ElftoonSource extends BaseSource {
 		const series = this.seriesScope(this.flight(await this.fetchHtml(path)));
 		const field = (re: RegExp): string => this.str(series.match(re)?.[1] ?? '');
 
+		// Chapter objects live inside the series object of the flight payload. Read each field on
+		// its own (field order and missing dates must not drop a chapter) and key by number.
 		const chapters: Chapter[] = [];
-		const chRe =
-			/"number":(\d+(?:\.\d+)?),"title":(?:null|"(?:[^"\\]|\\.)*")[^}]{0,400}?"publishedAt":"([^"]*)"/g;
-		for (const m of series.matchAll(chRe)) {
+		const seen = new Set<string>();
+		for (const row of series.split('},{')) {
+			if (!row.includes('"isLocked"')) continue;
+			const num = row.match(/"number":(\d+(?:\.\d+)?)/)?.[1];
+			if (!num || seen.has(num)) continue;
+			seen.add(num);
 			chapters.push({
-				id: `${path}/chapter/${m[1]}`,
-				title: `Chapter ${m[1]}`,
-				number: parseFloat(m[1]),
-				date: m[2]
+				id: `${path}/chapter/${num}`,
+				title: `Chapter ${num}`,
+				number: parseFloat(num),
+				date: this.str(row.match(/"publishedAt":"([^"]*)"/)?.[1] ?? '')
 			});
 		}
 		chapters.sort((a, b) => b.number - a.number);
