@@ -65,6 +65,107 @@ export abstract class BaseSource implements IMangaSource {
 		return await response.json();
 	}
 
+	// --- small HTML readers -------------------------------------------------
+	// These replace cheerio in the adapters: no tree, no dependency. They read the
+	// shapes these five sites actually emit (quoted attributes, no `>` inside one,
+	// standard entities). A shape outside that needs a real parser again.
+
+	/**
+	 * Split HTML at every marker match (one pass), for repeated records such as
+	 * chapter rows. `before` is the 600 characters ahead of the match: the context
+	 * a DOM ancestor would see. `body` runs to the next match, so a capture in one
+	 * record can never bleed into the next.
+	 */
+	protected static records(
+		html: string,
+		marker: RegExp,
+		context = 600
+	): { before: string; body: string }[] {
+		const re = new RegExp(marker.source, marker.flags.includes('g') ? marker.flags : `${marker.flags}g`);
+		const at: number[] = [];
+		for (const m of html.matchAll(re)) at.push(m.index);
+		return at.map((start, i) => ({
+			before: html.slice(Math.max(0, start - context), start),
+			body: html.slice(start, i + 1 < at.length ? at[i + 1] : html.length)
+		}));
+	}
+
+	/** Value of one attribute inside a single tag string, quoted or not (entities decoded). */
+	protected static attr(tag: string, name: string): string {
+		if (!tag) return '';
+		const re = new RegExp(
+			`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>"'=]+))`,
+			'i'
+		);
+		const m = tag.match(re);
+		return m ? BaseSource.decode(m[1] ?? m[2] ?? m[3] ?? '') : '';
+	}
+
+	/** First tag matching `tagRe`, as the raw tag string, for BaseSource.attr(). */
+	protected static tag(html: string, tagRe: RegExp): string {
+		return html.match(tagRe)?.[0] || '';
+	}
+
+	/** Every tag matching `tagRe` in document order. */
+	protected static tags(html: string, tagRe: RegExp): string[] {
+		const re = new RegExp(
+			tagRe.source,
+			tagRe.flags.includes('g') ? tagRe.flags : `${tagRe.flags}g`
+		);
+		return Array.from(html.matchAll(re), (m) => m[0]);
+	}
+
+	/** The opening tag that starts `body` (a record from BaseSource.records). */
+	protected static open(body: string): string {
+		const gt = body.indexOf('>');
+		return gt < 0 ? body : body.slice(0, gt + 1);
+	}
+
+	/**
+	 * Content of the tag that starts `body`, up to its first `</tagName>`. Nested
+	 * elements of the same name need a sibling pass instead.
+	 */
+	protected static inner(body: string, tagName: string): string {
+		const gt = body.indexOf('>');
+		const end = body.search(new RegExp(`</${tagName}\\b`, 'i'));
+		return body.slice(gt + 1, end < 0 ? body.length : end);
+	}
+
+	/** Visible text: drop tags, decode entities, collapse whitespace (cheerio .text()). */
+	protected static text(html: string): string {
+		if (!html) return '';
+		return BaseSource.decode(html.replace(/<[^>]*>/g, ' '))
+			.replace(/\s+/g, ' ')
+			.trim();
+	}
+
+	/** The entities these sites emit. The full HTML table is a real parser's job. */
+	protected static decode(s: string): string {
+		if (!s || !s.includes('&')) return s;
+		const named: Record<string, string> = {
+			amp: '&',
+			lt: '<',
+			gt: '>',
+			quot: '"',
+			apos: "'",
+			nbsp: ' ',
+			mdash: '—',
+			ndash: '–',
+			hellip: '…',
+			rsquo: '’',
+			lsquo: '‘',
+			rdquo: '”',
+			ldquo: '“',
+			deg: '°',
+			middot: '·'
+		};
+		return s.replace(/&(#x?[0-9a-f]+|[a-z][a-z0-9]*);/gi, (whole, body: string) => {
+			if (body[0] !== '#') return named[body.toLowerCase()] ?? whole;
+			const code = body[1] === 'x' || body[1] === 'X' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
+			return Number.isFinite(code) && code > 0 ? String.fromCodePoint(code) : whole;
+		});
+	}
+
 	// Abstract methods to be implemented by concrete adapters
 	abstract getLatestManga(page: number): Promise<Manga[]>;
 	abstract searchManga(query: string): Promise<Manga[]>;

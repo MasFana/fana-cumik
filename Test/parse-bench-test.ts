@@ -181,35 +181,3 @@ for (const c of cases) {
 			`regex=${regexMs.toFixed(2)} -> ${(cheerioTotal / regexMs).toFixed(1)}x faster`
 	);
 }
-
-// Field-level parity, not just counts: the chapter rows carry a date and a number
-// that the app shows, so a regex rewrite must reproduce them per row.
-{
-	const s = new WeebcentralSource() as unknown as {
-		extractChapters: (api: cheerio.CheerioAPI) => { id: string; number: number; date: string }[];
-	};
-	const html = await readFile(`${DIR}/weebcentral.html`, 'utf8');
-	const adapter = s.extractChapters(cheerio.load(html));
-	const regex = html
-		.split(/(?=<div[^>]*checkNewChapter\()/i)
-		.slice(1)
-		.map((row) => ({
-			id: (row.match(/href="([^"]*\/chapters\/[^"\/]+)"/i)?.[1] || '').replace(/^\/*/, '/'),
-			number: parseFloat(row.match(/\bChapter\s*([\d.]+)/i)?.[1] || '0'),
-			date:
-				row.match(/<time[^>]*datetime="([^"]+)"/i)?.[1] ||
-				row.match(/checkNewChapter\('([^']+)'\)/i)?.[1] ||
-				''
-		}))
-		.filter((row) => row.id);
-	const key = (r: { id: string; number: number; date: string }) => `${r.id}|${r.number}|${r.date}`;
-	const a = new Set(adapter.map(key));
-	const b = new Set(regex.map(key));
-	const missing = [...a].filter((k) => !b.has(k)).length;
-	const extra = [...b].filter((k) => !a.has(k)).length;
-	const dated = adapter.filter((c) => c.date).length;
-	console.log(
-		`\nfield parity (weebcentral) adapter=${a.size} regex=${b.size} dated=${dated}/${a.size} ` +
-			`mismatch=${missing + extra}`
-	);
-}

@@ -1,6 +1,5 @@
 import { BaseSource } from '../BaseSource';
 import type { Manga, MangaDetails, Chapter } from '../types';
-import * as cheerio from 'cheerio';
 
 /**
  * WeebCentral Adapter (weebcentral.com)
@@ -8,6 +7,9 @@ import * as cheerio from 'cheerio';
  * - Listing: `/` (homepage cover cards). Search: `/search/data?text=...&display_mode=Full+Display` (hard cap ~32, no pagination).
  * - Details: `/series/<ULID>/<slug>`. Chapters: `<seriesPath>/chapter-select?current_chapter=<any-id>` (all rows, no pagination).
  * - Reader images: `/chapters/<CHID>/images?is_prev=False&reading_style=long_strip&current_page=1` -> `#chapter-images img[src]`.
+ *
+ * Parsing is regex over the raw HTML (no DOM): these pages are flat record lists,
+ * so one pass per record beats building a tree. See BaseSource for the readers.
  */
 export class WeebcentralSource extends BaseSource {
 	id = 'weebcentral';
@@ -47,6 +49,18 @@ export class WeebcentralSource extends BaseSource {
 		return href.startsWith('http') ? new URL(href).pathname : href;
 	}
 
+	private static readonly SERIES_PATH = /^\/series\/[^/]+\/[^/]+$/;
+	private static readonly CHAPTER_PATH = /^\/chapters\/[^/]+$/;
+
+	/** Series path of the first back-link in a chapter page (its own series). */
+	private seriesPath(html: string): string {
+		for (const { body } of BaseSource.records(html, /<a\b/gi)) {
+			const path = this.toPath(BaseSource.attr(BaseSource.open(body), 'href'));
+			if (WeebcentralSource.SERIES_PATH.test(path)) return path;
+		}
+		return '';
+	}
+
 	/**
 	 * Chapter list, with release times. `/series/<id>/full-chapter-list` is the rich fragment:
 	 * one row per chapter (including the newest, which `chapter-select` renders as a button,
@@ -71,7 +85,7 @@ export class WeebcentralSource extends BaseSource {
 	}
 
 	/** Parse /series/<ULID>/<slug> anchors that carry a cover image into Manga cards (search + homepage). */
-	private cards($: cheerio.CheerioAPI): Manga[] {
+	private cards(html: string): Manga[] {
 		const res: Manga[] = [];
 		const seen = new Set<string>();
 		// data-tip on WeebCentral cards is often a type badge ("Manga", "Anime
@@ -81,30 +95,32 @@ export class WeebcentralSource extends BaseSource {
 			const v = this.clean(s);
 			return v && !badges.has(v.toLowerCase()) ? v : '';
 		};
-		$('a[href*="/series/"]').each((_, el) => {
-			const $a = $(el);
-			const id = this.toPath($a.attr('href') || '');
-			// Only /series/<id>/<slug> (two segments), never chapter/series-index links.
-			if (!/^\/series\/[^/]+\/[^/]+$/.test(id)) return;
-			if (seen.has(id)) return;
 
-			const img = $a.find('img').first();
-			const src = img.attr('src') || img.attr('data-src') || '';
+		for (const { before, body } of BaseSource.records(html, /<a\b/gi)) {
+			const id = this.toPath(BaseSource.attr(BaseSource.open(body), 'href'));
+			// Only /series/<id>/<slug> (two segments), never chapter/series-index links.
+			if (!WeebcentralSource.SERIES_PATH.test(id) || seen.has(id)) continue;
+
+			const img = BaseSource.tag(body, /<img\b[^>]*>/i);
+			const src = BaseSource.attr(img, 'src') || BaseSource.attr(img, 'data-src');
 			// Real cover cards embed an <img>; the plain "Recently Added"/"Popular" anchor
 			// lists do not — skip them so we never borrow a sibling card's cover.
-			if (!src) return;
+			if (!src) continue;
 
+			const inner = BaseSource.inner(body, 'a');
+			// The card's own [data-tip] sits on a wrapper just before the anchor.
+			const priorTip = BaseSource.tags(before, /<[^>]*\bdata-tip\s*=[^>]*>/gi).pop() || '';
 			const title =
-				this.clean(img.attr('alt') || '').replace(/\s*cover$/i, '') ||
-				tip($a.closest('[data-tip]').attr('data-tip') || '') ||
-				tip($('span.tooltip', $a).first().attr('data-tip') || '') ||
-				this.clean($a.text()) ||
+				this.clean(BaseSource.attr(img, 'alt')).replace(/\s*cover$/i, '') ||
+				tip(BaseSource.attr(priorTip, 'data-tip')) ||
+				tip(BaseSource.attr(BaseSource.tag(inner, /<span[^>]*\btooltip\b[^>]*>/i), 'data-tip')) ||
+				this.clean(BaseSource.text(inner)) ||
 				decodeURIComponent(id.split('/').pop() || '').replace(/-/g, ' ');
 
-			if (!title) return;
+			if (!title) continue;
 			seen.add(id);
 			res.push({ id, title, cover: this.abs(src), sourceId: this.id });
-		});
+		}
 		return res;
 	}
 
@@ -116,8 +132,7 @@ export class WeebcentralSource extends BaseSource {
 	async getLatestManga(page: number): Promise<Manga[]> {
 		const p = Number.isFinite(page) && page > 1 ? Math.floor(page) : 1;
 		try {
-			const html = await this.fetchHtml(`/latest-updates/${p}`);
-			return this.cards(cheerio.load(html));
+			return this.cards(await this.fetchHtml(`/latest-updates/${p}`));
 		} catch (e) {
 			console.error('[WeebCentral] getLatestManga failed:', e);
 			return [];
@@ -137,7 +152,7 @@ export class WeebcentralSource extends BaseSource {
 			const html = await this.fetchHtml(
 				`/search/data?limit=32&offset=${offset}&text=${encodeURIComponent(query)}&display_mode=Full+Display`
 			);
-			return this.cards(cheerio.load(html));
+			return this.cards(html);
 		} catch (e) {
 			console.error('[WeebCentral] searchManga failed:', e);
 			return [];
@@ -145,24 +160,24 @@ export class WeebcentralSource extends BaseSource {
 	}
 
 	/** Parse chapter rows: <a href=".../chapters/<ID>">Chapter N</a> plus the row's date. */
-	private extractChapters($: cheerio.CheerioAPI): Chapter[] {
+	private extractChapters(html: string): Chapter[] {
 		const chapters: Chapter[] = [];
 		const seen = new Set<string>();
-		$('a[href*="/chapters/"]').each((_, el) => {
-			const $a = $(el);
-			const id = this.toPath($a.attr('href') || '');
-			if (!/^\/chapters\/[^/]+$/.test(id) || seen.has(id)) return;
+		for (const { before, body } of BaseSource.records(html, /<a\b/gi)) {
+			const id = this.toPath(BaseSource.attr(BaseSource.open(body), 'href'));
+			if (!WeebcentralSource.CHAPTER_PATH.test(id) || seen.has(id)) continue;
 			seen.add(id);
-			const text = this.clean($a.text());
+			const text = this.clean(BaseSource.text(BaseSource.inner(body, 'a')));
 			const numMatch = text.match(/chapter\s*([\d.]+)/i);
 			const number = numMatch ? parseFloat(numMatch[1]) : 0;
-			// The row wrapper holds the release time, as <time datetime> or in checkNewChapter().
-			const row = $a.closest('div');
+			// The row wrapper opens right before the anchor and holds the release time,
+			// as <time datetime> or in its x-data checkNewChapter() call.
+			const row = before.slice(before.lastIndexOf('</div>') + 6) + body;
 			const date =
-				this.clean(row.find('time[datetime]').first().attr('datetime') || '') ||
-				this.clean(row.attr('x-data')?.match(/checkNewChapter\('([^']+)'\)/)?.[1] || '');
+				this.clean(BaseSource.attr(BaseSource.tag(row, /<time[^>]*datetime=[^>]*>/i), 'datetime')) ||
+				this.clean(row.match(/checkNewChapter\('([^']+)'\)/)?.[1] || '');
 			chapters.push({ id, title: text || `Chapter ${number}`, number, date });
-		});
+		}
 		chapters.sort((a, b) => b.number - a.number);
 		return chapters;
 	}
@@ -171,33 +186,33 @@ export class WeebcentralSource extends BaseSource {
 		let path = this.toPath(mangaId);
 		// A chapter path (/chapters/<ULID>) is not a series page. The chapter page
 		// contains back-links to its series; resolve the first /series/<id>/<slug>.
-		if (/^\/chapters\/[^/]+$/.test(path)) {
-			const $ch = cheerio.load(await this.fetchHtml(path));
-			const seriesPath = $ch('a[href*="/series/"]')
-				.toArray()
-				.map((el) => this.toPath($ch(el).attr('href') || ''))
-				.find((p) => /^\/series\/[^/]+\/[^/]+$/.test(p));
-			if (seriesPath) path = seriesPath;
+		if (WeebcentralSource.CHAPTER_PATH.test(path)) {
+			path = this.seriesPath(await this.fetchHtml(path)) || path;
 		}
 		const html = await this.fetchHtml(path);
-		const $ = cheerio.load(html);
 
 		// Chapters: seed from an inline chapter link, then expand via chapter-select.
-		const seed =
-			this.toPath($('a[href*="/chapters/"]').first().attr('href') || '')
-				.split('/')
-				.pop() || '';
-		const chapters = this.extractChapters(cheerio.load(await this.fetchChapterList(path, seed)));
+		const seed = html.match(/href="[^"]*\/chapters\/([^"/]+)"/i)?.[1] || '';
+		const chapters = this.extractChapters(await this.fetchChapterList(path, seed));
 
+		const h1 = BaseSource.records(html, /<h1\b/gi);
+		const classy = h1.find((r) => {
+			const classes = BaseSource.attr(BaseSource.open(r.body), 'class').split(/\s+/);
+			return classes.includes('hidden') && classes.includes('md:block');
+		});
 		const title =
-			this.clean($('h1.hidden.md\\:block').first().text()) ||
-			this.clean($('h1').first().text()) ||
-			this.clean($('meta[property="og:title"]').attr('content') || '') ||
+			this.clean(classy ? BaseSource.text(BaseSource.inner(classy.body, 'h1')) : '') ||
+			this.clean(h1[0] ? BaseSource.text(BaseSource.inner(h1[0].body, 'h1')) : '') ||
+			this.clean(
+				BaseSource.attr(BaseSource.tag(html, /<meta[^>]*\bproperty="og:title"[^>]*>/i), 'content')
+			) ||
 			path;
 
 		const cover = this.abs(
-			$('meta[property="og:image"]').attr('content') ||
-				$('img[src*="/cover/"]').first().attr('src') ||
+			BaseSource.attr(BaseSource.tag(html, /<meta[^>]*\bproperty="og:image"[^>]*>/i), 'content') ||
+				BaseSource.tags(html, /<img\b[^>]*>/gi)
+					.map((t) => BaseSource.attr(t, 'src'))
+					.find((src) => src.includes('/cover/')) ||
 				''
 		);
 
@@ -208,15 +223,13 @@ export class WeebcentralSource extends BaseSource {
 				.replace(/[^a-z]/g, '');
 		const metaOf = (label: string): string => {
 			const want = norm(label);
-			let val = '';
-			$('li').each((_, el) => {
-				const $li = $(el);
-				if (val) return;
-				if (norm($li.find('strong').first().text()).startsWith(want)) {
-					val = this.clean($li.clone().find('strong').remove().end().text());
+			for (const { body } of BaseSource.records(html, /<li\b/gi)) {
+				const strong = BaseSource.tag(body, /<strong\b[^>]*>[\s\S]*?<\/strong>/i);
+				if (norm(BaseSource.text(strong)).startsWith(want)) {
+					return this.clean(BaseSource.text(BaseSource.inner(body, 'li').replace(strong, '')));
 				}
-			});
-			return val;
+			}
+			return '';
 		};
 
 		const authors: string[] = [];
@@ -227,18 +240,29 @@ export class WeebcentralSource extends BaseSource {
 			}
 		}
 
+		const anchors = BaseSource.records(html, /<a\b/gi);
+		const statusAnchor = anchors.find((r) =>
+			BaseSource.attr(BaseSource.open(r.body), 'href').includes('included_status=')
+		);
 		const status =
-			this.clean($('a[href*="included_status="]').first().text()) || metaOf('Status') || 'Ongoing';
+			this.clean(
+				statusAnchor ? BaseSource.text(BaseSource.inner(statusAnchor.body, 'a')) : ''
+			) ||
+			metaOf('Status') ||
+			'Ongoing';
 
 		const genres: string[] = [];
-		$('a[href*="included_tag="]').each((_, el) => {
-			const g = this.clean($(el).text());
+		for (const { body } of anchors) {
+			if (!BaseSource.attr(BaseSource.open(body), 'href').includes('included_tag=')) continue;
+			const g = this.clean(BaseSource.text(BaseSource.inner(body, 'a')));
 			if (g && !genres.some((x) => x.toLowerCase() === g.toLowerCase())) genres.push(g);
-		});
+		}
 
-		const description =
-			this.clean($('li p.whitespace-pre-wrap').first().text()) ||
-			this.clean($('p.whitespace-pre-wrap').first().text());
+		const description = this.clean(
+			BaseSource.text(
+				BaseSource.tag(html, /<p\b[^>]*\bclass="[^"]*whitespace-pre-wrap[^"]*"[^>]*>[\s\S]*?<\/p>/i)
+			)
+		);
 
 		return {
 			id: path,
@@ -253,20 +277,37 @@ export class WeebcentralSource extends BaseSource {
 		};
 	}
 
+	/**
+	 * Reader images: everything inside `#chapter-images`, plus any `/manga/` image
+	 * earlier in the page (the second half of the old `#chapter-images img, img[src*="/manga/"]`).
+	 */
+	private pageImages(html: string): string[] {
+		const at = html.search(/id="chapter-images"/i);
+		const end = at < 0 ? -1 : html.indexOf('</section>', at);
+		const head = at < 0 ? html : html.slice(0, at);
+		const strip = at < 0 ? '' : html.slice(at, end < 0 ? html.length : end);
+
+		const images: string[] = [];
+		const push = (src: string) => {
+			if (!src) return;
+			const a = this.abs(src);
+			if (!images.includes(a)) images.push(a);
+		};
+		for (const tag of BaseSource.tags(head, /<img\b[^>]*>/gi)) {
+			const src = BaseSource.attr(tag, 'src');
+			if (src.includes('/manga/')) push(src);
+		}
+		for (const tag of BaseSource.tags(strip, /<img\b[^>]*>/gi)) {
+			push(BaseSource.attr(tag, 'src') || BaseSource.attr(tag, 'data-src'));
+		}
+		return images;
+	}
+
 	async getChapterPages(chapterId: string): Promise<string[]> {
 		const path = this.toPath(chapterId);
 		const html = await this.fetchHtml(
 			`${path}/images?is_prev=False&reading_style=long_strip&current_page=1`
 		);
-		const $ = cheerio.load(html);
-		const images: string[] = [];
-		$('#chapter-images img, img[src*="/manga/"]').each((_, el) => {
-			const src = $(el).attr('src') || $(el).attr('data-src') || '';
-			if (src) {
-				const a = this.abs(src);
-				if (!images.includes(a)) images.push(a);
-			}
-		});
-		return images;
+		return this.pageImages(html);
 	}
 }
