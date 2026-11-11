@@ -81,7 +81,10 @@ export abstract class BaseSource implements IMangaSource {
 		marker: RegExp,
 		context = 600
 	): { before: string; body: string }[] {
-		const re = new RegExp(marker.source, marker.flags.includes('g') ? marker.flags : `${marker.flags}g`);
+		const re = new RegExp(
+			marker.source,
+			marker.flags.includes('g') ? marker.flags : `${marker.flags}g`
+		);
 		const at: number[] = [];
 		for (const m of html.matchAll(re)) at.push(m.index);
 		return at.map((start, i) => ({
@@ -93,10 +96,7 @@ export abstract class BaseSource implements IMangaSource {
 	/** Value of one attribute inside a single tag string, quoted or not (entities decoded). */
 	protected static attr(tag: string, name: string): string {
 		if (!tag) return '';
-		const re = new RegExp(
-			`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>"'=]+))`,
-			'i'
-		);
+		const re = new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>"'=]+))`, 'i');
 		const m = tag.match(re);
 		return m ? BaseSource.decode(m[1] ?? m[2] ?? m[3] ?? '') : '';
 	}
@@ -131,12 +131,52 @@ export abstract class BaseSource implements IMangaSource {
 		return body.slice(gt + 1, end < 0 ? body.length : end);
 	}
 
-	/** Visible text: drop tags, decode entities, collapse whitespace (cheerio .text()). */
+	/**
+	 * The element that contains offset `at`, up to its own close tag. Nested
+	 * same-name tags are counted, so the region never runs past the element.
+	 */
+	protected static elementAt(html: string, at: number): string {
+		if (at < 0) return '';
+		const open = html.lastIndexOf('<', at);
+		const tagName = html.slice(open + 1).match(/^[a-z][a-z0-9]*/i)?.[0];
+		if (!tagName) return '';
+		const re = new RegExp(`<${tagName}\\b|</${tagName}\\b`, 'gi');
+		let depth = 0;
+		for (const m of html.matchAll(re)) {
+			if (m.index < open) continue;
+			depth += m[0][1] === '/' ? -1 : 1;
+			if (depth === 0) {
+				const rest = html.slice(m.index);
+				const end = rest.indexOf('>');
+				return html.slice(open, m.index + (end < 0 ? rest.length : end + 1));
+			}
+		}
+		return html.slice(open);
+	}
+
+	/**
+	 * Visible text, as cheerio's `.text()`: tags gone (no separator, the DOM joins
+	 * text nodes as they are), entities decoded, ends trimmed. Inner spaces and
+	 * line breaks stay — collapse them at the call site when a field is one line.
+	 */
 	protected static text(html: string): string {
 		if (!html) return '';
-		return BaseSource.decode(html.replace(/<[^>]*>/g, ' '))
-			.replace(/\s+/g, ' ')
-			.trim();
+		return BaseSource.decode(html.replace(/<[^>]*>/g, '')).trim();
+	}
+
+	/**
+	 * The first element whose own tag carries `name="value"`, as raw HTML up to its
+	 * own close tag. For schema.org hooks such as `itemprop="url"`.
+	 */
+	protected static element(html: string, name: string, value: string): string {
+		const esc = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const re = new RegExp(`<([a-z][a-z0-9]*)\\b[^>]*\\b${name}\\s*=\\s*"${esc}"[^>]*>`, 'i');
+		const m = re.exec(html);
+		if (!m) return '';
+		if (/^(meta|img|input|link|br|hr|source|area|embed|track|wbr)$/i.test(m[1])) return m[0];
+		const rest = html.slice(m.index + m[0].length);
+		const end = rest.search(new RegExp(`</${m[1]}\\b`, 'i'));
+		return m[0] + (end < 0 ? rest : rest.slice(0, end));
 	}
 
 	/** The entities these sites emit. The full HTML table is a real parser's job. */
@@ -161,7 +201,10 @@ export abstract class BaseSource implements IMangaSource {
 		};
 		return s.replace(/&(#x?[0-9a-f]+|[a-z][a-z0-9]*);/gi, (whole, body: string) => {
 			if (body[0] !== '#') return named[body.toLowerCase()] ?? whole;
-			const code = body[1] === 'x' || body[1] === 'X' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
+			const code =
+				body[1] === 'x' || body[1] === 'X'
+					? parseInt(body.slice(2), 16)
+					: parseInt(body.slice(1), 10);
 			return Number.isFinite(code) && code > 0 ? String.fromCodePoint(code) : whole;
 		});
 	}

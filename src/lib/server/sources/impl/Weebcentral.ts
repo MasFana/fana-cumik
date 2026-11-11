@@ -90,7 +90,13 @@ export class WeebcentralSource extends BaseSource {
 		const seen = new Set<string>();
 		// data-tip on WeebCentral cards is often a type badge ("Manga", "Anime
 		// Adaptation", ...) rather than the title, so never let it win.
-		const badges = new Set(['manga', 'anime adaptation', 'official translation', 'manhwa', 'manhua']);
+		const badges = new Set([
+			'manga',
+			'anime adaptation',
+			'official translation',
+			'manhwa',
+			'manhua'
+		]);
 		const tip = (s: string): string => {
 			const v = this.clean(s);
 			return v && !badges.has(v.toLowerCase()) ? v : '';
@@ -174,8 +180,9 @@ export class WeebcentralSource extends BaseSource {
 			// as <time datetime> or in its x-data checkNewChapter() call.
 			const row = before.slice(before.lastIndexOf('</div>') + 6) + body;
 			const date =
-				this.clean(BaseSource.attr(BaseSource.tag(row, /<time[^>]*datetime=[^>]*>/i), 'datetime')) ||
-				this.clean(row.match(/checkNewChapter\('([^']+)'\)/)?.[1] || '');
+				this.clean(
+					BaseSource.attr(BaseSource.tag(row, /<time[^>]*datetime=[^>]*>/i), 'datetime')
+				) || this.clean(row.match(/checkNewChapter\('([^']+)'\)/)?.[1] || '');
 			chapters.push({ id, title: text || `Chapter ${number}`, number, date });
 		}
 		chapters.sort((a, b) => b.number - a.number);
@@ -245,9 +252,7 @@ export class WeebcentralSource extends BaseSource {
 			BaseSource.attr(BaseSource.open(r.body), 'href').includes('included_status=')
 		);
 		const status =
-			this.clean(
-				statusAnchor ? BaseSource.text(BaseSource.inner(statusAnchor.body, 'a')) : ''
-			) ||
+			this.clean(statusAnchor ? BaseSource.text(BaseSource.inner(statusAnchor.body, 'a')) : '') ||
 			metaOf('Status') ||
 			'Ongoing';
 
