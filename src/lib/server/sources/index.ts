@@ -7,6 +7,7 @@
  */
 
 import { AsuraSource } from './impl/Asura';
+import { ElftoonSource } from './impl/Elftoon';
 import { KomikuSource } from './impl/Komiku';
 import { MangadexSource } from './impl/Mangadex';
 import { VortexSource } from './impl/Vortex';
@@ -17,6 +18,7 @@ import type { IMangaSource } from './types';
 // Registry of all available manga sources
 const sources: Record<string, IMangaSource> = {
 	asura: new AsuraSource(),
+	elftoon: new ElftoonSource(),
 	komiku: new KomikuSource(),
 	mangadex: new MangadexSource(),
 	vortex: new VortexSource(),

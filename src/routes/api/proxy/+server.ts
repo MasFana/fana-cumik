@@ -25,6 +25,7 @@ const ALLOWED_HOSTS = [
 	'vortexscans.org', // vortex chapter pages
 	'wp.com', // vortex covers via i0/i1/i2.wp.com
 	'omegascans.org', // omega covers + chapter pages
+	'elftoon.net', // elftoon covers + chapter pages
 	'compsci88.com', // weebcentral covers
 	'lastation.us' // weebcentral chapter pages
 ];
