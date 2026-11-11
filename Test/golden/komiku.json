@@ -1,6 +1,18 @@
 {
 	"latest": [
 		{
+			"id": "/manga/author-of-my-own-destiny/",
+			"title": "Author of My Own Destiny",
+			"cover": "https://thumbnail.komiku.org/new/img/images/2026/06/17/20260617020102_1b0b8c7a28a62871_63d54dde.jpg?resize=450%2C675",
+			"sourceId": "komiku"
+		},
+		{
+			"id": "/manga/the-broken-ring-this-marriage-will-fail-anyway/",
+			"title": "The Broken Ring: This Marriage Will Fail Anyway",
+			"cover": "https://thumbnail.komiku.org/uploads/manga/the-broken-ring-this-marriage-will-fail-anyway/manga_img_horizontal-The-Broken-Ring-2.png?resize=450%2C675",
+			"sourceId": "komiku"
+		},
+		{
 			"id": "/manga/the-bullied-one-is-too-good-at-fighting/",
 			"title": "The Bullied One Is Too Good at Fighting",
 			"cover": "https://thumbnail.komiku.org/uploads/manga/the-bullied-one-is-too-good-at-fighting/manga_img_horizontal-Back-The-Bullied-One-Is-Too-Good-at-Fighting.jpg?resize=450%2C675",
@@ -46,18 +58,6 @@
 			"id": "/manga/the-demon-slayers-restaurant/",
 			"title": "The Demon Slayer’s Restaurant",
 			"cover": "https://thumbnail.komiku.org/img/upload/the_demon_slayer___s_restaurant/img_682d6270297810.75776644.jpg?resize=450%2C675",
-			"sourceId": "komiku"
-		},
-		{
-			"id": "/manga/munou-no-akudou-ouji-wa-ikinokoritai-renai-rpg-no-akuyaku-mob-ni-tensei-shita-kedo-gensaku-mushi-shite-saikyou-o-mezasu/",
-			"title": "Munou no Akudou Ouji wa Ikinokoritai: Ren’ai RPG no Akuyaku Mob ni Tensei Shita kedo, Gensaku Mushi Shite Saikyou o Mezasu",
-			"cover": "https://thumbnail.komiku.org/img/upload/munou_no_akudou_ouji_wa_ikinokoritai__ren___ai_rpg_no_akuyaku_mob_ni_tensei_shita_kedo__gensaku_mushi_shite_saikyou_o_mezasu/img_6864e61e45b969.43879667.jpg?resize=450%2C675",
-			"sourceId": "komiku"
-		},
-		{
-			"id": "/manga/takou-no-hiki-wo-tasuketara-otomodachi-kara-hajimeru-koto-ni-narimashita-after-helping-ice-princess-from-another-school-i-decided-to-start-as-a-friend/",
-			"title": "Takou no Hiki wo Tasuketara, Otomodachi kara Hajimeru Koto ni narimashita (After Helping “Ice Princess” from Another School, I Decided to Start As a Friend)",
-			"cover": "https://thumbnail.komiku.org/uploads/manga/takou-no-hiki-wo-tasuketara-otomodachi-kara-hajimeru-koto-ni-narimashita-after-helping-ice-princess-from-another-school-i-decided-to-start-as-a-friend/manga_img_horizontal-A1-Takou-no-Hiki-wo-Tasuketara-Otomodachi-kara-Hajimeru-Koto-ni-narimashita.jpg?resize=450%2C675",
 			"sourceId": "komiku"
 		}
 	],

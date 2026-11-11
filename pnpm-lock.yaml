@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      cheerio:
-        specifier: ^1.1.2
-        version: 1.1.2
       lucide-svelte:
         specifier: ^0.562.0
         version: 0.562.0(svelte@5.46.0)
@@ -39,6 +36,9 @@ importers:
       '@types/node':
         specifier: ^22
         version: 22.19.3
+      cheerio:
+        specifier: ^1.1.2
+        version: 1.1.2
       eslint:
         specifier: ^9.39.1
         version: 9.39.2(jiti@2.6.1)

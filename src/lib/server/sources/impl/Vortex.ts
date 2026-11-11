@@ -1,12 +1,13 @@
 import { BaseSource } from '../BaseSource';
 import type { Manga, MangaDetails, Chapter } from '../types';
-import * as cheerio from 'cheerio';
 
 /**
  * VortexScans Adapter (vortexscans.org)
  * - Listing/search: /series?page=N | /series?searchTerm=...
  * - Details: HTML SSR. Description div[itemprop="description"], genres a[href*="genres="].
  * - Chapters: <dl> metadata + chapter anchors with span.font-medium title and <time> date.
+ *
+ * Parsing is regex over the raw HTML (no DOM); see BaseSource for the readers.
  */
 export class VortexSource extends BaseSource {
 	id = 'vortex';
@@ -24,21 +25,41 @@ export class VortexSource extends BaseSource {
 		return (s || '').replace(/\s+/g, ' ').trim();
 	}
 
-	private cards($: cheerio.CheerioAPI): Manga[] {
+	private firstImg(html: string): string {
+		const tag = BaseSource.tag(html, /<img\b[^>]*>/i);
+		return BaseSource.attr(tag, 'src') || BaseSource.attr(tag, 'data-src');
+	}
+
+	/** `$anchor.find('h3, h2, .title').first()`: the earliest of the three in `html`. */
+	private heading(html: string): string {
+		const at = [
+			html.search(/<h3\b/i),
+			html.search(/<h2\b/i),
+			html.search(/<[a-z][a-z0-9]*\b[^>]*\bclass="[^"]*\btitle\b[^"]*"[^>]*>/i)
+		]
+			.filter((i) => i >= 0)
+			.sort((a, b) => a - b)[0];
+		return at === undefined ? '' : this.clean(BaseSource.text(BaseSource.elementAt(html, at)));
+	}
+
+	private cards(html: string): Manga[] {
 		const res: Manga[] = [];
-		$('a[href*="/series/"]').each((_, el) => {
-			const $a = $(el);
-			const href = $a.attr('href') || '';
+		for (const { body } of BaseSource.records(
+			html,
+			/<a\b[^>]*href="[^"]*\/series\/[^"]*"[^>]*>/gi
+		)) {
+			const href = BaseSource.attr(BaseSource.open(body), 'href');
 			// Chapter links live under /series/<slug>/chapter-... — never treat as manga
-			if (/\/chapter[-/]/i.test(href)) return;
-			const img = $a.find('img').first();
-			const src = img.attr('src') || img.attr('data-src') || '';
-			const title = this.clean(img.attr('alt') || '') || this.clean($a.find('h3, h2, .title').first().text());
-			if (href && title) {
+			if (!href || /\/chapter[-/]/i.test(href)) continue;
+			const image = this.firstImg(body);
+			const title =
+				this.clean(BaseSource.attr(BaseSource.tag(body, /<img\b[^>]*>/i), 'alt')) ||
+				this.heading(body);
+			if (title) {
 				const id = href.startsWith('http') ? new URL(href).pathname : href;
-				res.push({ id, title, cover: this.abs(src), sourceId: this.id });
+				res.push({ id, title, cover: this.abs(image), sourceId: this.id });
 			}
-		});
+		}
 		// dedupe by id
 		return res.filter((m, i, a) => a.findIndex((x) => x.id === m.id) === i);
 	}
@@ -46,7 +67,7 @@ export class VortexSource extends BaseSource {
 	async getLatestManga(page: number): Promise<Manga[]> {
 		try {
 			const html = await this.fetchHtml(`/series?page=${page}`);
-			return this.cards(cheerio.load(html));
+			return this.cards(html);
 		} catch (e) {
 			console.error('[Vortex] getLatestManga failed:', e);
 			return [];
@@ -56,7 +77,7 @@ export class VortexSource extends BaseSource {
 	async searchManga(query: string): Promise<Manga[]> {
 		try {
 			const html = await this.fetchHtml(`/series?searchTerm=${encodeURIComponent(query)}`);
-			return this.cards(cheerio.load(html));
+			return this.cards(html);
 		} catch (e) {
 			console.error('[Vortex] searchManga failed:', e);
 			return [];
@@ -64,37 +85,51 @@ export class VortexSource extends BaseSource {
 	}
 
 	/** Read the <dl> metadata rows: <dt>Label</dt><dd>value</dd> */
-	private metaMap($: cheerio.CheerioAPI): Record<string, string> {
+	private metaMap(html: string): Record<string, string> {
 		const out: Record<string, string> = {};
-		$('dl dt').each((_, el) => {
-			const $dt = $(el);
-			const key = this.clean($dt.text()).toLowerCase();
-			const val = this.clean($dt.next('dd').text());
-			if (key && val) out[key] = val;
-		});
+		for (const { body } of BaseSource.records(html, /<dt\b[^>]*>/gi)) {
+			const key = this.clean(BaseSource.text(BaseSource.inner(body, 'dt'))).toLowerCase();
+			// The dd is the very next sibling of the dt, so it follows its close tag.
+			const after = body.slice(body.search(/<\/dt>/i) + '</dt>'.length);
+			const dd = after.match(/^\s*<dd\b/i);
+			if (!key || !dd) continue;
+			const val = this.clean(BaseSource.text(BaseSource.inner(after.slice(dd.index ?? 0), 'dd')));
+			if (val) out[key] = val;
+		}
 		return out;
 	}
 
-	private extractGenres($: cheerio.CheerioAPI): string[] {
+	private extractGenres(html: string): string[] {
 		const genres: string[] = [];
-		$('a[itemprop="genre"], a[href*="genres="]').each((_, el) => {
-			const g = this.clean($(el).text());
+		for (const tag of BaseSource.tags(
+			html,
+			/<a\b[^>]*\sitemprop="genre"[^>]*>[\s\S]*?<\/a>|<a\b[^>]*href="[^"]*genres=[^"]*"[^>]*>[\s\S]*?<\/a>/gi
+		)) {
+			const g = this.clean(BaseSource.text(tag));
 			if (g && !genres.some((x) => x.toLowerCase() === g.toLowerCase())) genres.push(g);
-		});
+		}
 		return genres;
 	}
 
-	private extractDescription($: cheerio.CheerioAPI): string {
-		const primary = this.clean($('[itemprop="description"]').first().text());
+	private extractDescription(html: string): string {
+		const primary = this.clean(
+			BaseSource.text(BaseSource.element(html, 'itemprop', 'description'))
+		);
 		if (primary) return primary;
-		const fallback = this.clean($('.description, .synopsis, .summary').first().text());
-		if (fallback) return fallback;
+		const starts = [
+			html.search(/<[a-z][a-z0-9]*\b[^>]*\bclass="[^"]*\bdescription\b[^"]*"[^>]*>/i),
+			html.search(/<[a-z][a-z0-9]*\b[^>]*\bclass="[^"]*\bsynopsis\b[^"]*"[^>]*>/i),
+			html.search(/<[a-z][a-z0-9]*\b[^>]*\bclass="[^"]*\bsummary\b[^"]*"[^>]*>/i)
+		]
+			.filter((i) => i >= 0)
+			.sort((a, b) => a - b);
+		if (starts.length) return this.clean(BaseSource.text(BaseSource.elementAt(html, starts[0])));
 		// Last resort: the "Summary" tab panel body
-		const panel = $('section[data-series-tab-panel="description"]').first().text();
-		return this.clean(panel);
+		const at = html.search(/<section\b[^>]*\bdata-series-tab-panel="description"[^>]*>/i);
+		return at < 0 ? '' : this.clean(BaseSource.text(BaseSource.elementAt(html, at)));
 	}
 
-	private extractChapters($: cheerio.CheerioAPI, slug: string, html: string): Chapter[] {
+	private extractChapters(html: string, slug: string): Chapter[] {
 		// Payload-first: the SSR anchor list below is partial (the hero button and
 		// some rows are dropped), but the dehydrated SvelteKit payload in the same
 		// HTML lists every chapter. Only the relative dates live in the anchors.
@@ -113,17 +148,23 @@ export class VortexSource extends BaseSource {
 		const chapters: Chapter[] = [];
 		const datesByNumber = new Map<number, string>();
 		const seen = new Set<string>();
-		const scope = slug ? `a[href*="/series/${slug}/chapter"]` : 'a[href*="/chapter"]';
+		const scope = slug ? `/series/${slug}/chapter` : '/chapter';
 
-		$(scope).each((_, el) => {
-			const $el = $(el);
-			const href = $el.attr('href') || '';
-			if (!href) return;
+		// The href is entity-encoded in the raw HTML (`&#x27;` for an apostrophe in the
+		// slug), so the slug is compared after decoding, not by the selector.
+		for (const { body } of BaseSource.records(
+			html,
+			/<a\b[^>]*href="[^"]*\/chapter[^"]*"[^>]*>/gi
+		)) {
+			const href = BaseSource.attr(BaseSource.open(body), 'href');
+			if (!href || !href.includes(scope)) continue;
+			const inner = BaseSource.inner(body, 'a');
 			// Skip the hero "Start Reading" button
-			if ($el.find('[data-continue-label]').length || /start reading/i.test($el.text())) return;
+			if (/data-continue-label/i.test(inner) || /start reading/i.test(BaseSource.text(inner)))
+				continue;
 
 			const id = href.startsWith('http') ? new URL(href).pathname : href;
-			if (seen.has(id)) return;
+			if (seen.has(id)) continue;
 			seen.add(id);
 
 			const numMatch = id.match(/chapter[-/](\d+(?:[.-]\d+)?)/i);
@@ -131,11 +172,19 @@ export class VortexSource extends BaseSource {
 
 			// Title lives in span.font-medium (or the first span); "New" badge and
 			// the relative date are siblings and must not leak into the label.
-			let title = this.clean($el.find('span.font-medium, span[class*="font-medium"]').first().text());
+			let title = this.clean(
+				BaseSource.text(
+					BaseSource.tag(
+						inner,
+						/<span\b[^>]*\bclass="[^"]*\bfont-medium\b[^"]*"[^>]*>[\s\S]*?<\/span>/i
+					)
+				)
+			);
 			if (!title) {
-				const clone = $el.clone();
-				clone.find('time, svg, img, button, [class*="dot-animation"]').remove();
-				title = this.clean(clone.text());
+				const stripped = inner
+					.replace(/<time\b[^>]*>[\s\S]*?<\/time>/gi, '')
+					.replace(/<(svg|button)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
+				title = this.clean(BaseSource.text(stripped));
 			}
 			title = title
 				.replace(/\bNew\b/gi, '')
@@ -146,14 +195,18 @@ export class VortexSource extends BaseSource {
 				title = number ? `Chapter ${number}` : 'Chapter';
 			}
 
-			const $time = $el.find('time').first();
+			const time = BaseSource.tag(inner, /<time\b[^>]*>[\s\S]*?<\/time>/i);
 			const date = this.clean(
-				$time.text() || $time.attr('datetime') || $time.attr('dateTime') || $el.find('span[title]').attr('title') || ''
+				BaseSource.text(time) ||
+					BaseSource.attr(time, 'datetime') ||
+					BaseSource.attr(time, 'dateTime') ||
+					BaseSource.attr(BaseSource.tag(inner, /<span\b[^>]*\btitle="[^"]*"[^>]*>/i), 'title') ||
+					''
 			);
 
 			chapters.push({ id, title, number, date });
 			if (date) datesByNumber.set(number, date);
-		});
+		}
 
 		if (payload.length > 0) {
 			return payload
@@ -169,25 +222,28 @@ export class VortexSource extends BaseSource {
 	async getMangaDetails(mangaId: string): Promise<MangaDetails> {
 		const path = mangaId.startsWith('http') ? new URL(mangaId).pathname : mangaId;
 		const html = await this.fetchHtml(path);
-		const $ = cheerio.load(html);
 
-		const title = this.clean($('h1').first().text()) || path;
+		const title =
+			this.clean(BaseSource.text(BaseSource.tag(html, /<h1\b[^>]*>[\s\S]*?<\/h1>/i))) || path;
 		// Cover: the real cover carries itemprop="image". Older markup matched on
-		// 'cover'/'thumbnail' in the URL. Never fall back to $('img').first() —
-		// that is the site logo.
-		const coverSrc =
-			$('img[itemprop="image"]').first().attr('src') ||
-			$('img')
-				.filter((_, el) => {
-					const s = $(el).attr('src') || '';
-					return s.includes('cover') || s.includes('thumbnail');
-				})
-				.first()
-				.attr('src') ||
-			'';
+		// 'cover'/'thumbnail' in the URL. Never fall back to the site logo, which is
+		// the first <img> on the page.
+		let coverSrc = BaseSource.attr(
+			BaseSource.tag(html, /<img\b[^>]*\sitemprop="image"[^>]*>/i),
+			'src'
+		);
+		if (!coverSrc) {
+			for (const { body } of BaseSource.records(html, /<img\b[^>]*>/gi)) {
+				const src = BaseSource.attr(body, 'src');
+				if (src.includes('cover') || src.includes('thumbnail')) {
+					coverSrc = src;
+					break;
+				}
+			}
+		}
 		const cover = this.abs(coverSrc);
 
-		const meta = this.metaMap($);
+		const meta = this.metaMap(html);
 		const authors: string[] = [];
 		for (const k of ['author', 'artist']) {
 			if (meta[k]) {
@@ -206,18 +262,17 @@ export class VortexSource extends BaseSource {
 			sourceId: this.id,
 			title,
 			cover,
-			description: this.extractDescription($),
+			description: this.extractDescription(html),
 			authors,
 			status: meta['status'] || 'Ongoing',
-			genres: this.extractGenres($),
-			chapters: this.extractChapters($, slug, html)
+			genres: this.extractGenres(html),
+			chapters: this.extractChapters(html, slug)
 		};
 	}
 
 	async getChapterPages(chapterId: string): Promise<string[]> {
 		const path = chapterId.startsWith('http') ? new URL(chapterId).pathname : chapterId;
 		const html = await this.fetchHtml(path);
-		const $ = cheerio.load(html);
 		const images: string[] = [];
 
 		// Payload-first: reader pages ship no <img>; page images live only in the
@@ -226,34 +281,45 @@ export class VortexSource extends BaseSource {
 		const payload = Array.from(html.matchAll(/displaySrc:"(https:[^"]+)"/g)).map((m) => m[1]);
 		if (payload.length > 0) return [...new Set(payload)];
 
-		// Primary: reader pages are tagged with data-reader-page-image / data-reader-index
-		const tagged = $('img[data-reader-page-image]').toArray();
+		// Fallbacks, in the order the old selector list tried them.
+		const tagged: { src: string; idx: number }[] = [];
+		for (const { body } of BaseSource.records(
+			html,
+			/<img\b[^>]*\bdata-reader-page-image\b[^>]*>/gi
+		)) {
+			const src = BaseSource.attr(body, 'src') || BaseSource.attr(body, 'data-src');
+			const idx = parseInt(BaseSource.attr(body, 'data-reader-index') || '0', 10) || 0;
+			if (src) tagged.push({ src: this.abs(src), idx });
+		}
 		if (tagged.length > 0) {
 			tagged
-				.map((el) => ({ el, idx: parseInt($(el).attr('data-reader-index') || '0', 10) || 0 }))
 				.sort((a, b) => a.idx - b.idx)
-				.forEach(({ el }) => {
-					const src = $(el).attr('src') || $(el).attr('data-src') || '';
-					if (src) {
-						const abs = this.abs(src);
-						if (!images.includes(abs)) images.push(abs);
-					}
+				.forEach(({ src }) => {
+					if (!images.includes(src)) images.push(src);
 				});
 			return images;
 		}
 
-		$('img').each((_, el) => {
-			const src = $(el).attr('src') || $(el).attr('data-src') || '';
+		for (const { body } of BaseSource.records(html, /<img\b[^>]*>/gi)) {
+			const src = BaseSource.attr(body, 'src') || BaseSource.attr(body, 'data-src');
 			if (src && /\/page-\d+[^/]*\.(?:jpg|jpeg|png|webp)(?:\?|$)/i.test(src)) {
 				const abs = this.abs(src);
 				if (!images.includes(abs)) images.push(abs);
 			}
-		});
+		}
 		if (images.length === 0) {
-			$('.reader-container img, #chapter-content img, .chapter-img').each((_, el) => {
-				const src = $(el).attr('src') || $(el).attr('data-src') || '';
+			const at = [
+				html.search(/class="[^"]*\breader-container\b[^"]*"/i),
+				html.search(/id="chapter-content"/i),
+				html.search(/class="[^"]*\bchapter-img\b[^"]*"/i)
+			]
+				.filter((i) => i >= 0)
+				.sort((a, b) => a - b)[0];
+			const region = at === undefined ? '' : BaseSource.elementAt(html, at);
+			for (const { body } of BaseSource.records(region, /<img\b[^>]*>/gi)) {
+				const src = BaseSource.attr(body, 'src') || BaseSource.attr(body, 'data-src');
 				if (src) images.push(this.abs(src));
-			});
+			}
 		}
 		return images;
 	}

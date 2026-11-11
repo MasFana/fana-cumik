@@ -24,6 +24,7 @@
 		"@sveltejs/vite-plugin-svelte": "^6.2.1",
 		"@tailwindcss/vite": "^4.1.17",
 		"@types/node": "^22",
+		"cheerio": "^1.1.2",
 		"eslint": "^9.39.1",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.13.0",
@@ -45,7 +46,6 @@
 		]
 	},
 	"dependencies": {
-		"cheerio": "^1.1.2",
 		"lucide-svelte": "^0.562.0"
 	}
 }

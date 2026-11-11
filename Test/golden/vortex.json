@@ -1,6 +1,18 @@
 {
 	"latest": [
 		{
+			"id": "/series/eat-before-you-go",
+			"title": "Eat Before You Go",
+			"cover": "https://storage.vortexscans.org/upload/2026/03/08/8c099135-97dc-45ba-8563-3253e3f8762d.webp",
+			"sourceId": "vortex"
+		},
+		{
+			"id": "/series/the-dying-wall-street-genius",
+			"title": "The Dying Wall Street Genius",
+			"cover": "https://storage.vortexscans.org/upload/series/featured/lxJf4GmfzvG3XexqIAuF8KOjIGtbS5BK/ca17bb30-a9e3-4178-8150-3c0a3ede5072.png",
+			"sourceId": "vortex"
+		},
+		{
 			"id": "/series/a-grimoire-changed-my-fate",
 			"title": "A Grimoire Changed My Fate",
 			"cover": "https://storage.vortexscans.org/upload/series/featured/4/eeb1dc7f-7c46-4ed2-9eef-46f04761b264.png",
@@ -31,12 +43,6 @@
 			"sourceId": "vortex"
 		},
 		{
-			"id": "/series/fantasy-induction-corps",
-			"title": "Fantasy Induction Corps",
-			"cover": "https://storage.vortexscans.org/upload/2026/01/31/24a73ac5-9108-4823-b3ab-04376873d3f6.webp",
-			"sourceId": "vortex"
-		},
-		{
 			"id": "/series/became-a-medieval-fantasy-wizard",
 			"title": "Became a Medieval Fantasy Wizard",
 			"cover": "https://storage.vortexscans.org/upload/series/featured/lxJf4GmfzvG3XexqIAuF8KOjIGtbS5BK/5c0a5d36-51c3-455e-8dcd-b71634ad7c9c.jpg",
@@ -46,12 +52,6 @@
 			"id": "/series/the-hero's-millionth-regression",
 			"title": "The Hero’s Millionth Regression",
 			"cover": "https://storage.vortexscans.org/upload/series/featured/4/40366ca0-180c-405b-9d54-793c13dd6225.png",
-			"sourceId": "vortex"
-		},
-		{
-			"id": "/series/the-dying-wall-street-genius",
-			"title": "The Dying Wall Street Genius",
-			"cover": "https://storage.vortexscans.org/upload/series/featured/lxJf4GmfzvG3XexqIAuF8KOjIGtbS5BK/ca17bb30-a9e3-4178-8150-3c0a3ede5072.png",
 			"sourceId": "vortex"
 		},
 		{
@@ -169,12 +169,6 @@
 			"sourceId": "vortex"
 		},
 		{
-			"id": "/series/survival-story-of-a-sword-king-in-a-fantasy-world",
-			"title": "Survival Story of a Sword King in a Fantasy World",
-			"cover": "https://storage.vortexscans.org/upload/series/featured/lxJf4GmfzvG3XexqIAuF8KOjIGtbS5BK/a3052083-361b-4102-be97-20cb17149d8f.jpg",
-			"sourceId": "vortex"
-		},
-		{
 			"id": "/series/the-northern-grand-dukes-mad-son-in-law",
 			"title": "The Northern Grand Duke’s Mad Son-in-Law",
 			"cover": "https://storage.vortexscans.org/upload/series/featured/751/823b0a74-bf2d-4daa-a5fa-714349630b84.png",
@@ -199,12 +193,6 @@
 			"sourceId": "vortex"
 		},
 		{
-			"id": "/series/eat-before-you-go",
-			"title": "Eat Before You Go",
-			"cover": "https://storage.vortexscans.org/upload/2026/03/08/8c099135-97dc-45ba-8563-3253e3f8762d.webp",
-			"sourceId": "vortex"
-		},
-		{
 			"id": "/series/spend-more-earn-more",
 			"title": "Spend More, Earn More",
 			"cover": "https://storage.vortexscans.org/upload/series/featured/lxJf4GmfzvG3XexqIAuF8KOjIGtbS5BK/45bbe898-09bb-4538-b103-da2da149afbc.jpg",
@@ -214,6 +202,18 @@
 			"id": "/series/one-day-i-became-a-hatchling",
 			"title": "One Day I Became a Hatchling",
 			"cover": "https://storage.vortexscans.org/upload/series/featured/751/99203faa-a4e9-4826-8d73-32957cc98e0a.png",
+			"sourceId": "vortex"
+		},
+		{
+			"id": "/series/survival-story-of-a-sword-king-in-a-fantasy-world",
+			"title": "Survival Story of a Sword King in a Fantasy World",
+			"cover": "https://storage.vortexscans.org/upload/series/featured/lxJf4GmfzvG3XexqIAuF8KOjIGtbS5BK/a3052083-361b-4102-be97-20cb17149d8f.jpg",
+			"sourceId": "vortex"
+		},
+		{
+			"id": "/series/fantasy-induction-corps",
+			"title": "Fantasy Induction Corps",
+			"cover": "https://storage.vortexscans.org/upload/2026/01/31/24a73ac5-9108-4823-b3ab-04376873d3f6.webp",
 			"sourceId": "vortex"
 		}
 	],

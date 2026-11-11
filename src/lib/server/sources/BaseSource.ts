@@ -94,10 +94,13 @@ export abstract class BaseSource implements IMangaSource {
 		}));
 	}
 
-	/** Value of one attribute inside a single tag string, quoted or not (entities decoded). */
+	/**
+	 * Value of one attribute inside a single tag string, quoted or not (entities decoded).
+	 * The name must start an attribute: `data-src` does not answer `attr(tag, 'src')`.
+	 */
 	protected static attr(tag: string, name: string): string {
 		if (!tag) return '';
-		const re = new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>"'=]+))`, 'i');
+		const re = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>"'=]+))`, 'i');
 		const m = tag.match(re);
 		return m ? BaseSource.decode(m[1] ?? m[2] ?? m[3] ?? '') : '';
 	}
